@@ -141,7 +141,7 @@ generate_html_report() {
   {
     cat <<'HTML'
 <!doctype html><html><head><meta charset="utf-8"><title>AI PR Review</title><style>
-:root{--ink:#172033;--muted:#667085;--line:#e5e7eb;--navy:#12355b;--blue:#175cd3;--bg:#f4f7fb}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}.top{background:linear-gradient(120deg,#0d3158,#2563b8);color:#fff;padding:42px max(24px,calc((100% - 1060px)/2))}.top h1{margin:0;font-size:30px}.top p{margin:6px 0 0;color:#dbeafe}.content{max-width:1060px;margin:28px auto 60px;padding:0 24px}.card{background:#fff;border-radius:16px;padding:32px;box-shadow:0 8px 30px #183b6614}h1{color:var(--navy);font-size:28px;margin:0 0 18px}h2{color:var(--navy);font-size:21px;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid #dbeafe}h3{color:#175cd3;margin:22px 0 8px;font-size:17px}p{margin:9px 0}ul,ol{padding-left:25px}li{margin:6px 0}pre{background:#101828;color:#e5eefb;border-radius:10px;padding:18px;overflow:auto;white-space:pre-wrap;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}code{background:#eef4ff;color:#12355b;padding:2px 5px;border-radius:4px}.severity{display:inline-block;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:700;margin-right:6px}.blocker{background:#fee4e2;color:#b42318}.major{background:#fef0c7;color:#93370d}.minor{background:#d1fadf;color:#027a48}.suggestion,.question{background:#e0eaff;color:#175cd3}.muted{color:var(--muted)}
+:root{--ink:#182230;--muted:#667085;--line:#e5e7eb;--navy:#102a4c;--blue:#155eef;--bg:#f3f7ff}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.58}.top{background:linear-gradient(120deg,#0b2441,#155eef 58%,#4f46e5);color:#fff;padding:46px max(24px,calc((100% - 1060px)/2))}.top h1{margin:0;font-size:32px;letter-spacing:-.5px}.top p{margin:7px 0 0;color:#dbeafe}.content{max-width:1060px;margin:28px auto 60px;padding:0 24px}.card{background:#fff;border-radius:18px;padding:34px;box-shadow:0 12px 32px #183b6618;border:1px solid #e6edfb}h1{color:var(--navy);font-size:28px;margin:0 0 18px;letter-spacing:-.3px}h2{color:var(--navy);font-size:21px;margin:36px 0 14px;padding:10px 12px;border-left:4px solid var(--blue);background:#f0f6ff;border-radius:0 8px 8px 0}h3{color:#155eef;margin:24px 0 9px;font-size:17px}p{margin:10px 0}ul,ol{padding-left:25px}li{margin:7px 0}pre{background:#101828;color:#e5eefb;border-radius:10px;padding:18px;overflow:auto;white-space:pre-wrap;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}code{background:#eef4ff;color:#12355b;padding:2px 5px;border-radius:4px}.severity{display:inline-block;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:700;margin-right:6px}.blocker{background:#fee4e2;color:#b42318}.major{background:#fef0c7;color:#93370d}.minor{background:#d1fadf;color:#027a48}.suggestion,.question{background:#e0eaff;color:#175cd3}.muted{color:var(--muted)}
 </style></head><body><header class="top"><h1>AI Pull Request Review</h1><p>Evidence-based review of the frozen pull-request snapshot</p></header><main class="content"><article class="card">
 HTML
     render_markdown_html "$markdown_file"
@@ -203,6 +203,23 @@ find_review_start_line() {
   local transcript="$1"
   grep -niE '(^# .*review|^[[:space:]]*[^[:cntrl:]]+(code review (summary|report)|review summary|final review)[^[:cntrl:]]*$|^## executive summary)' "$transcript" \
     | tail -n 1 | cut -d: -f1 || true
+}
+
+extract_final_review() {
+  # Keep the human review, never the preceding terminal/tool log. A completed
+  # IDFC response normally ends at its timing line or returns to the prompt.
+  local transcript="$1" start_line="$2"
+  tail -n "+$start_line" "$transcript" | awk '
+    BEGIN { shown = 0; nonblank = 0 }
+    /^[[:space:]]*$/ { if (shown) print; next }
+    {
+      shown = 1
+      nonblank++
+      if ($0 ~ /^(thinking\.\.\.|took [0-9]+[sm]|[[:space:]]*[>›][[:space:]]*$|>>> EXECUTE MODE)/) exit
+      print
+      if (nonblank >= 300) exit
+    }
+  ' | sed '/./,$!d'
 }
 
 print_open_link() {
@@ -806,13 +823,11 @@ run_single_review() {
         printf '%s\n' '## Captured IDFC Coder output'
         printf '%s\n'
         if [[ -n "$REPORT_START_LINE" ]]; then
-          tail -n "+$REPORT_START_LINE" "$CLEAN_TRANSCRIPT"
+          extract_final_review "$CLEAN_TRANSCRIPT" "$REPORT_START_LINE"
         else
-          printf '%s\n' '> The reviewer could not identify a separate final-review heading, so the last part of the completed terminal response is shown below.'
+          printf '%s\n' '> IDFC Coder completed, but it did not produce a recognizable final review report. No terminal log is included here.'
           printf '%s\n'
-          printf '%s\n' '```text'
-          tail -n 800 "$CLEAN_TRANSCRIPT"
-          printf '%s\n' '```'
+          printf '%s\n' 'Open `agent.log` only if troubleshooting is needed, then run the review again so IDFC Coder writes the requested review report.'
         fi
       } > "$final_report"
     else
