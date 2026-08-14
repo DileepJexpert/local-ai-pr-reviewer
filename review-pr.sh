@@ -679,7 +679,7 @@ run_agent() {
       "$IDFC_CODER_CMD" "$TASK_CONTENT" 2>&1 | tee "$AGENT_LOG"
       ;;
     interactive)
-      INSTRUCTION="Read $TASK_FILE and execute the complete review. Create $AGENT_REPORT as instructed."
+      INSTRUCTION="Start the mandatory read-only pull-request code review now. Do not ask the user to describe a task, choose a goal, or approve code changes. Read $TASK_FILE first and follow it completely. Inspect the whole frozen repository snapshot and merge-base diff, but do not modify application code, configuration, tests, or Git history. Create the required review report at $AGENT_REPORT and the local proposed-comment file specified by the task. Complete the review before asking any optional follow-up question."
       if command -v pbcopy >/dev/null 2>&1; then
         printf '%s' "$INSTRUCTION" | pbcopy
       fi
@@ -690,11 +690,11 @@ run_agent() {
       echo "2. Press Cmd + V to paste the review instruction."
       echo "3. Press Enter once."
       echo "4. When you see PLAN MODE / 'Shift+Tab to approve this plan': press Shift + Tab."
-      echo "5. When you then see >>> EXECUTE MODE <<<: type Proceed at the > prompt and press Enter."
+      echo "5. When you then see >>> EXECUTE MODE <<<: type Proceed at the > prompt and press Enter. Do not type 'just review' or another task; the review task is already supplied."
       echo "6. Wait until REVIEW COMPLETE appears; do not close Terminal."
       echo "============================================="
       if command -v osascript >/dev/null 2>&1; then
-        osascript -e 'display dialog "IDFC Coder will open next.\n\n1. Click inside IDFC Coder.\n2. Press Command-V to paste the review instruction.\n3. Press Enter once.\n4. PLAN MODE: press Shift-Tab.\n5. EXECUTE MODE: type Proceed at the > prompt, then press Enter.\n6. Wait for REVIEW COMPLETE in Terminal.\n\nThe instruction is already copied to your clipboard." with title "Local AI PR Reviewer - Next Step" buttons {"Cancel", "Open IDFC Coder"} default button "Open IDFC Coder" with icon note'
+        osascript -e 'display dialog "IDFC Coder will open next.\n\n1. Click inside IDFC Coder.\n2. Press Command-V to paste the complete read-only review task.\n3. Press Enter once.\n4. PLAN MODE: press Shift-Tab.\n5. EXECUTE MODE: type Proceed at the > prompt, then press Enter. Do not type a second task.\n6. Wait for REVIEW COMPLETE in Terminal.\n\nThe copied instruction already tells IDFC Coder to complete the code review without asking what project task you want." with title "Local AI PR Reviewer - Next Step" buttons {"Cancel", "Open IDFC Coder"} default button "Open IDFC Coder" with icon note'
       else
         read -r -p "Press Enter to open IDFC Coder, then paste with Cmd+V and press Enter: " _
       fi

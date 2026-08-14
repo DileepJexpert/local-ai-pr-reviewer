@@ -127,7 +127,7 @@ The script accepts GitHub/Bitbucket compare links and Bitbucket pull-request ove
 
 `start-review.sh` uses `--mode interactive` by default because the IDFC Coder terminal application needs a real terminal. When it opens, the reviewer copies one instruction to your clipboard; paste it into IDFC Coder and press Enter. Do not use `--mode stdin` unless your organisation confirms that its IDFC Coder supports prompt input from standard input.
 
-On macOS, the reviewer now also displays a clear **“ACTION REQUIRED”** dialog before IDFC Coder opens. Click **Open IDFC Coder**, then follow the displayed steps: click IDFC Coder, press `Cmd + V`, and press Enter once. When you see **PLAN MODE**, press `Shift + Tab`. When you see **EXECUTE MODE**, type `Proceed` at the `>` prompt and press Enter. Wait for `REVIEW COMPLETE` in Terminal.
+On macOS, the reviewer now also displays a clear **“ACTION REQUIRED”** dialog before IDFC Coder opens. Click **Open IDFC Coder**, then follow the displayed steps: click IDFC Coder, press `Cmd + V`, and press Enter once. When you see **PLAN MODE**, press `Shift + Tab`. When you see **EXECUTE MODE**, type `Proceed` at the `>` prompt and press Enter. Wait for `REVIEW COMPLETE` in Terminal. The copied instruction already tells IDFC Coder to perform the complete read-only PR review; do not type `just review` or another task after it opens.
 
 Some company Bitbucket installations expose only the PR `from` ref. That is supported: the reviewer uses the supplied `--target` branch (normally `main`) as the target snapshot.
 
