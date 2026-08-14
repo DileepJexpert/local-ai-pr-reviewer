@@ -115,18 +115,25 @@ REPORT_DIR="$SCRIPT_DIR/reviews"
 mkdir -p "$REPORT_DIR"
 FINAL_REPORT="$REPORT_DIR/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}.md"
 FINAL_LOG="$REPORT_DIR/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}.agent.log"
+RUN_LOG="$REPORT_DIR/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}.review.log"
 TASK_FILE="$REVIEW_DIR/REVIEW_TASK.md"
 AGENT_REPORT="$REVIEW_DIR/ai-pr-review.md"
 AGENT_LOG="$REVIEW_DIR/agent.log"
+
+log() {
+  printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$RUN_LOG"
+}
 
 cleanup() {
   if [[ "$KEEP_WORKTREE" == "true" ]]; then
     if [[ "$WORKTREE_ADDED" == "true" ]]; then
       echo "Keeping worktree: $WORKTREE"
       echo "Keeping review data: $REVIEW_DIR"
+      log "Cleanup: retained worktree and reviewer data on request."
       return
     fi
   elif [[ "$WORKTREE_ADDED" == "true" ]]; then
+    log "Cleanup: removing isolated worktree."
     git -C "$REPO" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || \
       echo "WARNING: Failed to remove registered worktree: $WORKTREE" >&2
   fi
@@ -134,26 +141,32 @@ cleanup() {
     # mktemp created this empty directory. Do not recursively delete a path after a failed add.
     rmdir "$WORKTREE" 2>/dev/null || true
   fi
+  log "Cleanup: removing temporary reviewer data."
   rm -rf "$REVIEW_DIR"
 }
 trap cleanup EXIT
 
-echo "Creating isolated review worktree..."
+log "Stage 1/6: creating isolated worktree for source ref $SOURCE_REF."
 git -C "$REPO" worktree add --detach "$WORKTREE" "$SOURCE_REF" >/dev/null
 WORKTREE_ADDED="true"
+log "Stage 1/6 complete: worktree created."
 
+log "Stage 2/6: copying reviewer rules and freezing Git evidence."
 mkdir -p "$REVIEW_DIR/rules"
 cp -R "$SCRIPT_DIR/rules/." "$REVIEW_DIR/rules/"
 
 MERGE_BASE="$(git -C "$REPO" merge-base "$TARGET_REF" "$SOURCE_REF")"
 SOURCE_SHA="$(git -C "$REPO" rev-parse "$SOURCE_REF")"
 TARGET_SHA="$(git -C "$REPO" rev-parse "$TARGET_REF")"
+log "Frozen refs: source=$SOURCE_SHA target=$TARGET_SHA merge-base=$MERGE_BASE"
 
 # Collect deterministic PR context. The agent can use Git itself for deeper exploration.
+log "Stage 3/6: generating changed-files list, diff statistics, full PR diff, and commit list."
 git -C "$REPO" diff --name-status "$MERGE_BASE...$SOURCE_REF" > "$REVIEW_DIR/changed-files.txt"
 git -C "$REPO" diff --stat "$MERGE_BASE...$SOURCE_REF" > "$REVIEW_DIR/diff-stat.txt"
 git -C "$REPO" diff --find-renames --find-copies "$MERGE_BASE...$SOURCE_REF" > "$REVIEW_DIR/pr.diff"
 git -C "$REPO" log --oneline --decorate "$MERGE_BASE..$SOURCE_REF" > "$REVIEW_DIR/commits.txt"
+log "Stage 3/6 complete: evidence files created."
 
 cat > "$REVIEW_DIR/PR_CONTEXT.md" <<EOF_CONTEXT
 # Pull Request Context
@@ -524,9 +537,11 @@ cd "$WORKTREE"
 echo
 echo "Review worktree: $WORKTREE"
 echo "Review task:     $TASK_FILE"
+echo "Live run log:    $RUN_LOG"
 echo
 
 run_agent() {
+  log "Stage 4/6: launching idfc-coder in $IDFC_CODER_MODE mode."
   case "$IDFC_CODER_MODE" in
     stdin)
       # For CLIs that accept the task on stdin.
@@ -552,21 +567,31 @@ INTERACTIVE
       if command -v pbcopy >/dev/null 2>&1; then
         printf '%s' "$INSTRUCTION" | pbcopy
       fi
-      "$IDFC_CODER_CMD" 2>&1 | tee "$AGENT_LOG"
+      log "IDFC Coder is interactive. Paste the copied instruction, then press Enter."
+      if command -v script >/dev/null 2>&1; then
+        script -q "$AGENT_LOG" "$IDFC_CODER_CMD"
+      else
+        "$IDFC_CODER_CMD"
+      fi
       ;;
   esac
+  log "Stage 4/6 complete: idfc-coder exited."
 }
 
 run_agent
 
 if [[ -f "$AGENT_REPORT" ]]; then
+  log "Stage 5/6: reviewer report found; copying final report and agent session log."
   cp "$AGENT_REPORT" "$FINAL_REPORT"
   cp "$AGENT_LOG" "$FINAL_LOG"
+  log "Stage 6/6 complete: review output saved."
   echo
   echo "Review complete."
   echo "Report: $FINAL_REPORT"
   echo "Agent log: $FINAL_LOG"
+  echo "Run log: $RUN_LOG"
 else
+  log "Review stopped: idfc-coder exited without creating the requested report."
   echo
   echo "WARNING: idfc-coder exited but the reviewer report was not created: $AGENT_REPORT" >&2
   echo "Worktree: $WORKTREE" >&2
