@@ -48,9 +48,9 @@ For BOTH mode the output folder contains `baseline\` and `guided\` subfolders, e
 .\review-pr.ps1 -Repository 'C:\work\katasticho' -Source 'feature/example' -Target main -Pr example -ReviewMode both -CoderCommand 'idfc-coder' -CoderMode stdin -OpenReport
 ```
 
-### One command from a GitHub compare URL
+### One command from a GitHub or Bitbucket compare URL
 
-Once a compatible local reviewer executable is installed, paste a GitHub compare URL into this command. It extracts the source branch (and target when the URL contains `main...branch`), runs the secure review, generates the report, and opens it.
+Once a compatible local reviewer executable is installed, pass a GitHub or Bitbucket **compare** URL. The launcher extracts the source and target branches, runs the secure review, generates the report, and opens it. Bitbucket pull-request overview URLs do not identify both branches locally; use the Compare page URL instead.
 
 ```powershell
 .\start-review.ps1 -Repository 'C:\work\katasticho' -PrUrl 'https://github.com/DileepJexpert/katasticho/compare/codex/contact-roles-field-sales-planning?expand=1' -Target main -CoderCommand 'idfc-coder' -OpenReport
@@ -85,9 +85,19 @@ Run the review with one command:
 ```bash
 ./start-review.sh \
   --repo "$HOME/work/katasticho" \
-  --url 'https://github.com/DileepJexpert/katasticho/compare/codex/contact-roles-field-sales-planning?expand=1' \
+  --url 'https://bitbucket.company/projects/PROJECT/repos/repository/compare?sourceBranch=refs%2Fheads%2Ffeature%2Fmy-change&targetBranch=refs%2Fheads%2Fmain' \
   --target main \
   --coder idfc-coder
+```
+
+Supported Bitbucket URL examples:
+
+```text
+Bitbucket Data Center / Server:
+https://bitbucket.company/projects/PROJECT/repos/repository/compare?sourceBranch=refs%2Fheads%2Ffeature%2Fmy-change&targetBranch=refs%2Fheads%2Fmain
+
+Bitbucket Cloud:
+https://bitbucket.org/workspace/repository/branches/compare/feature%2Fmy-change..main
 ```
 
 The script supplies the review task to `idfc-coder` through standard input. If your organisation's command requires interactive mode instead, run:
