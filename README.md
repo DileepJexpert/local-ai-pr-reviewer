@@ -121,6 +121,8 @@ use a local clone of `loan-letter-generator-service`, not another project such a
   --coder idfc-coder
 ```
 
+This is the current recommended command for the IDFC Bitbucket PR shown above. The launcher opens IDFC Coder in interactive mode by default. When it opens, paste the reviewer instruction that was copied to the clipboard with `Cmd + V`, then press Enter. Do not add `--mode stdin`.
+
 If a company Bitbucket configuration does not expose PR refs through Git, supply branches explicitly with any URL:
 
 ```bash
