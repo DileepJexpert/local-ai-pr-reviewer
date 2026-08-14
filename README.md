@@ -44,7 +44,7 @@ The reviewer already copied the complete **read-only code-review task** to your 
 2. Press `Cmd + V`, then Enter.
 3. When it shows **PLAN MODE**, press `Shift + Tab`.
 4. When it shows **EXECUTE MODE**, type `Proceed`, then Enter.
-5. Wait for `REVIEW COMPLETE`. Do not press `Ctrl + C`: the reviewer detects IDFC Coder's completion marker, ends that completed session, and prints the review link automatically. IDFC Coder must read code and run Git/search commands, but the supplied task forbids it from changing application code.
+5. When the completed review appears, press `Ctrl + C` once. The reviewer then saves the report/transcript and prints the review link. IDFC Coder must read code and run Git/search commands, but the supplied task forbids it from changing application code.
 
 The reviewer saves all files under `reviews/pr-.../` beside the reviewer scripts. It does not open a browser automatically. Terminal prints a Cmd-clickable `file://` review link and an exact `open "..."` command after completion. If IDFC Coder prints its completed review but fails to create its requested report file, the reviewer now preserves that completed terminal output as `review.html` instead of losing it.
 

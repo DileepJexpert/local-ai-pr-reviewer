@@ -131,8 +131,6 @@ AGENT_COMMENTS="$REVIEW_DIR/proposed-pr-comments.tsv"
 FINAL_COMMENTS="$REPORT_DIR/proposed-pr-comments.tsv"
 FINAL_COMMENTS_HTML="$REPORT_DIR/proposed-pr-comments.html"
 PR_URL="${AI_PR_URL:-}"
-AUTO_FINISH_MARKER="AI_PR_REVIEW_COMPLETE_${PR_NUMBER//[^[:alnum:]]/_}_$$"
-AUTO_FINISH_WATCHER_PID=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$RUN_LOG"
@@ -206,10 +204,6 @@ review_failed() {
 trap 'review_failed $?' ERR
 
 cleanup() {
-  if [[ -n "$AUTO_FINISH_WATCHER_PID" ]]; then
-    kill "$AUTO_FINISH_WATCHER_PID" 2>/dev/null || true
-    wait "$AUTO_FINISH_WATCHER_PID" 2>/dev/null || true
-  fi
   if [[ "$KEEP_WORKTREE" == "true" ]]; then
     if [[ "$WORKTREE_ADDED" == "true" ]]; then
       echo "Keeping worktree: $WORKTREE"
@@ -698,8 +692,6 @@ run_agent() {
       INSTRUCTION="$(cat <<EOF_INSTRUCTION
 You have exactly one mandatory job: complete the read-only pull-request code review below. Do not ask the user what task they want, do not offer implementation options, and do not modify application code, configuration, tests, or Git history. Start the review immediately, inspect the whole frozen checkout and merge-base diff, and create only the requested reviewer output files.
 
-After every requested report and proposed-comment file is saved, print this exact completion marker on a line by itself: $AUTO_FINISH_MARKER. Do not print that marker before the review is fully complete. The reviewer will then save the final files and end this completed IDFC Coder session automatically.
-
 ----- BEGIN MANDATORY REVIEW TASK -----
 $TASK_CONTENT
 ----- END MANDATORY REVIEW TASK -----
@@ -716,41 +708,16 @@ EOF_INSTRUCTION
       echo "3. Press Enter once."
       echo "4. When you see PLAN MODE / 'Shift+Tab to approve this plan': press Shift + Tab."
       echo "5. When you then see >>> EXECUTE MODE <<<: type Proceed at the > prompt and press Enter. Do not type 'just review' or another task; the complete review task is already supplied."
-      echo "6. Wait. When IDFC Coder finishes, this reviewer detects its completion marker, closes the completed session, and prints your review link automatically. Do not press Ctrl+C."
+      echo "6. When the completed review appears, press Ctrl+C once to close IDFC Coder. The reviewer then saves the report/transcript and prints your review link."
       echo "============================================="
       if command -v osascript >/dev/null 2>&1; then
-        osascript -e 'display dialog "IDFC Coder will open next.\n\n1. Click inside IDFC Coder.\n2. Press Command-V to paste the complete read-only review task.\n3. Press Enter once.\n4. PLAN MODE: press Shift-Tab.\n5. EXECUTE MODE: type Proceed at the > prompt, then press Enter. Do not type a second task.\n6. Wait. The reviewer automatically closes the completed session and prints the review link. Do not press Ctrl-C.\n\nThe copied instruction already tells IDFC Coder to complete the code review without asking what project task you want." with title "Local AI PR Reviewer - Next Step" buttons {"Cancel", "Open IDFC Coder"} default button "Open IDFC Coder" with icon note'
+        osascript -e 'display dialog "IDFC Coder will open next.\n\n1. Click inside IDFC Coder.\n2. Press Command-V to paste the complete read-only review task.\n3. Press Enter once.\n4. PLAN MODE: press Shift-Tab.\n5. EXECUTE MODE: type Proceed at the > prompt, then press Enter. Do not type a second task.\n6. When the completed review appears, press Ctrl-C once. The reviewer then saves the report/transcript and prints the review link.\n\nThe copied instruction already tells IDFC Coder to complete the code review without asking what project task you want." with title "Local AI PR Reviewer - Next Step" buttons {"Cancel", "Open IDFC Coder"} default button "Open IDFC Coder" with icon note'
       else
         read -r -p "Press Enter to open IDFC Coder, then paste with Cmd+V and press Enter: " _
       fi
       log "IDFC Coder is interactive. The review instruction is on the clipboard; paste it with Cmd+V, then press Enter."
       if command -v script >/dev/null 2>&1; then
-        script -q "$AGENT_LOG" "$IDFC_CODER_CMD" &
-        AGENT_SESSION_PID="$!"
-        (
-          while kill -0 "$AGENT_SESSION_PID" 2>/dev/null; do
-            if tr -d '\r' < "$AGENT_LOG" 2>/dev/null | grep -Fqx "$AUTO_FINISH_MARKER"; then
-              log "IDFC Coder completion marker detected; closing the completed interactive session."
-              kill -INT "$AGENT_SESSION_PID" 2>/dev/null || true
-              exit 0
-            fi
-            sleep 1
-          done
-        ) &
-        AUTO_FINISH_WATCHER_PID="$!"
-        if wait "$AGENT_SESSION_PID"; then
-          AGENT_EXIT_CODE=0
-        else
-          AGENT_EXIT_CODE="$?"
-        fi
-        kill "$AUTO_FINISH_WATCHER_PID" 2>/dev/null || true
-        wait "$AUTO_FINISH_WATCHER_PID" 2>/dev/null || true
-        AUTO_FINISH_WATCHER_PID=""
-        if tr -d '\r' < "$AGENT_LOG" 2>/dev/null | grep -Fqx "$AUTO_FINISH_MARKER"; then
-          log "Completed interactive review session closed automatically."
-        elif [[ "$AGENT_EXIT_CODE" -ne 0 ]]; then
-          return "$AGENT_EXIT_CODE"
-        fi
+        script -q "$AGENT_LOG" "$IDFC_CODER_CMD"
       else
         "$IDFC_CODER_CMD"
       fi
