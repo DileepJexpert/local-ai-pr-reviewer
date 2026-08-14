@@ -38,7 +38,7 @@ Answer its questions as follows:
 
 ### When IDFC Coder opens
 
-The reviewer already copied the complete **read-only code-review task** to your clipboard. Do not type `just review` or write another task.
+The reviewer already copied the complete **read-only code-review task** to your clipboard. Do not type `just review`, write another task, or answer IDFC Coder's generic project-question screen. The pasted task already tells it exactly what to review and where to save the report.
 
 1. Click IDFC Coder.
 2. Press `Cmd + V`, then Enter.

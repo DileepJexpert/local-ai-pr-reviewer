@@ -679,7 +679,15 @@ run_agent() {
       "$IDFC_CODER_CMD" "$TASK_CONTENT" 2>&1 | tee "$AGENT_LOG"
       ;;
     interactive)
-      INSTRUCTION="Start the mandatory read-only pull-request code review now. Do not ask the user to describe a task, choose a goal, or approve code changes. Read $TASK_FILE first and follow it completely. Inspect the whole frozen repository snapshot and merge-base diff, but do not modify application code, configuration, tests, or Git history. Create the required review report at $AGENT_REPORT and the local proposed-comment file specified by the task. Complete the review before asking any optional follow-up question."
+      TASK_CONTENT="$(cat "$TASK_FILE")"
+      INSTRUCTION="$(cat <<EOF_INSTRUCTION
+You have exactly one mandatory job: complete the read-only pull-request code review below. Do not ask the user what task they want, do not offer implementation options, and do not modify application code, configuration, tests, or Git history. Start the review immediately, inspect the whole frozen checkout and merge-base diff, and create only the requested reviewer output files.
+
+----- BEGIN MANDATORY REVIEW TASK -----
+$TASK_CONTENT
+----- END MANDATORY REVIEW TASK -----
+EOF_INSTRUCTION
+)"
       if command -v pbcopy >/dev/null 2>&1; then
         printf '%s' "$INSTRUCTION" | pbcopy
       fi
@@ -687,10 +695,10 @@ run_agent() {
       echo "============================================="
       echo "ACTION REQUIRED - IDFC CODER IS ABOUT TO OPEN"
       echo "1. Click the IDFC Coder window."
-      echo "2. Press Cmd + V to paste the review instruction."
+      echo "2. Press Cmd + V to paste the complete review task."
       echo "3. Press Enter once."
       echo "4. When you see PLAN MODE / 'Shift+Tab to approve this plan': press Shift + Tab."
-      echo "5. When you then see >>> EXECUTE MODE <<<: type Proceed at the > prompt and press Enter. Do not type 'just review' or another task; the review task is already supplied."
+      echo "5. When you then see >>> EXECUTE MODE <<<: type Proceed at the > prompt and press Enter. Do not type 'just review' or another task; the complete review task is already supplied."
       echo "6. Wait until REVIEW COMPLETE appears; do not close Terminal."
       echo "============================================="
       if command -v osascript >/dev/null 2>&1; then
