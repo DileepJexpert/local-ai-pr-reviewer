@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)][string]$Repository,
     [Parameter(Mandatory)][string]$PrUrl,
+    [string]$Source,
     [string]$Target = 'main',
     [string]$CoderCommand = $(if ($env:IDFC_CODER_CMD) { $env:IDFC_CODER_CMD } else { 'idfc-coder' }),
     [ValidateSet('stdin', 'arg', 'interactive')][string]$CoderMode = 'stdin',
@@ -16,39 +17,49 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $PSScriptRoot 'reviews'
 }
 $uri = [Uri]$PrUrl
-$source = $null
-if ($uri.Host -eq 'github.com' -and $uri.AbsolutePath -match '^/[^/]+/[^/]+/compare/(.+)$') {
+$sourceFromUrl = $Source
+if (-not [string]::IsNullOrWhiteSpace($sourceFromUrl)) {
+    # Explicit source/target works with any URL, including a PR overview page.
+} elseif ($uri.Host -eq 'github.com' -and $uri.AbsolutePath -match '^/[^/]+/[^/]+/compare/(.+)$') {
     $range = [Uri]::UnescapeDataString($Matches[1])
     if ($range.Contains('...')) {
         $parts = $range -split '\.\.\.', 2
         $Target = $parts[0]
-        $source = $parts[1]
+        $sourceFromUrl = $parts[1]
     } else {
-        $source = $range
+        $sourceFromUrl = $range
     }
 } elseif ($uri.AbsolutePath -match '/branches/compare/(.+)$') {
     $range = [Uri]::UnescapeDataString($Matches[1])
     if (-not $range.Contains('..')) { throw 'Bitbucket Cloud compare URL must contain source..target.' }
     $parts = $range -split '\.\.', 2
-    $source = $parts[0]
+    $sourceFromUrl = $parts[0]
     $Target = $parts[1]
 } elseif ($uri.AbsolutePath -match '/compare$') {
     $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
-    $source = $query['sourceBranch']
+    $sourceFromUrl = $query['sourceBranch']
     $targetFromUrl = $query['targetBranch']
-    if ([string]::IsNullOrWhiteSpace($source) -or [string]::IsNullOrWhiteSpace($targetFromUrl)) {
+    if ([string]::IsNullOrWhiteSpace($sourceFromUrl) -or [string]::IsNullOrWhiteSpace($targetFromUrl)) {
         throw 'Bitbucket Server compare URL needs sourceBranch and targetBranch query parameters.'
     }
-    $source = $source -replace '^refs/heads/', ''
+    $sourceFromUrl = $sourceFromUrl -replace '^refs/heads/', ''
     $Target = $targetFromUrl -replace '^refs/heads/', ''
+} elseif ($uri.AbsolutePath -match '/projects/[^/]+/repos/[^/]+/pull-requests/(\d+)(?:/|$)') {
+    $prId = $Matches[1]
+    $fromRef = "refs/remotes/origin/ai-pr-reviewer/pr/$prId/from"
+    $toRef = "refs/remotes/origin/ai-pr-reviewer/pr/$prId/to"
+    & git -C $Repository fetch origin "+refs/pull-requests/$prId/from:$fromRef" "+refs/pull-requests/$prId/to:$toRef"
+    if ($LASTEXITCODE -ne 0) { throw "Could not fetch Bitbucket pull request $prId refs from origin." }
+    $sourceFromUrl = (& git -C $Repository rev-parse $fromRef).Trim()
+    $Target = (& git -C $Repository rev-parse $toRef).Trim()
 } else {
-    throw 'PrUrl must be a GitHub compare URL, Bitbucket Cloud branches/compare URL, or Bitbucket Server compare?sourceBranch=...&targetBranch=... URL.'
+    throw 'Could not determine branches from PrUrl. Pass -Source and -Target, or use a GitHub/Bitbucket compare URL or Bitbucket PR overview URL.'
 }
-if ([string]::IsNullOrWhiteSpace($source)) { throw 'Could not determine the source branch from PrUrl.' }
+if ([string]::IsNullOrWhiteSpace($sourceFromUrl)) { throw 'Could not determine the source branch from PrUrl.' }
 
-$prLabel = "compare-$($source -replace '[^A-Za-z0-9_.-]', '_')"
+$prLabel = "compare-$($sourceFromUrl -replace '[^A-Za-z0-9_.-]', '_')"
 $runner = Join-Path $PSScriptRoot 'review-pr.ps1'
-& $runner -Repository $Repository -Source $source -Target $Target -Pr $prLabel `
+& $runner -Repository $Repository -Source $sourceFromUrl -Target $Target -Pr $prLabel `
     -CoderCommand $CoderCommand -CoderMode $CoderMode -ReviewMode $ReviewMode -OutputRoot $OutputRoot `
     -KeepWorktree:$KeepWorktree -OpenReport:$OpenReport
 exit $LASTEXITCODE

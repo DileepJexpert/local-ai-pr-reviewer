@@ -100,14 +100,32 @@ Bitbucket Cloud:
 https://bitbucket.org/workspace/repository/branches/compare/feature%2Fmy-change..main
 ```
 
-The script supplies the review task to `idfc-coder` through standard input. If your organisation's command requires interactive mode instead, run:
+The script accepts GitHub/Bitbucket compare links and Bitbucket pull-request overview links. For a Bitbucket overview URL it automatically fetches the PR's `from` and `to` refs from the local repository's `origin` remote. The local folder must therefore be a clone of the **same repository shown in the URL**.
+
+For example, for this company URL:
+
+```text
+https://bitbucket.devops.idfcbank.com/projects/JM/repos/loan-letter-generator-service/pull-requests/128/overview
+```
+
+use a local clone of `loan-letter-generator-service`, not another project such as Katasticho:
 
 ```bash
-IDFC_CODER_MODE=interactive ./review-pr.sh \
-  --repo "$HOME/work/katasticho" \
-  --source 'codex/contact-roles-field-sales-planning' \
+./start-review.sh \
+  --repo "$HOME/work/loan-letter-generator-service" \
+  --url 'https://bitbucket.devops.idfcbank.com/projects/JM/repos/loan-letter-generator-service/pull-requests/128/overview' \
+  --coder idfc-coder
+```
+
+If a company Bitbucket configuration does not expose PR refs through Git, supply branches explicitly with any URL:
+
+```bash
+./start-review.sh \
+  --repo "$HOME/work/loan-letter-generator-service" \
+  --url 'https://bitbucket.devops.idfcbank.com/projects/JM/repos/loan-letter-generator-service/pull-requests/128/overview' \
+  --source 'feature/my-change' \
   --target main \
-  --pr 'contact-roles'
+  --coder idfc-coder
 ```
 
 The report is saved in `~/tools/local-ai-pr-reviewer/reviews/`. In Finder, open that folder with:

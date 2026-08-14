@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: ./start-review.sh --repo /path/to/repo --url <GitHub-or-Bitbucket-compare-URL> [--target main] [--coder idfc-coder]"
+  echo "Usage: ./start-review.sh --repo /path/to/repo --url <GitHub-or-Bitbucket-URL> [--source branch] [--target main] [--coder idfc-coder]"
 }
 
 url_decode() {
@@ -19,11 +19,12 @@ query_value() {
   return 1
 }
 
-REPO="" URL="" TARGET="main" CODER="${IDFC_CODER_CMD:-idfc-coder}"
+REPO="" URL="" SOURCE="" TARGET="main" CODER="${IDFC_CODER_CMD:-idfc-coder}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
     --url) URL="${2:-}"; shift 2 ;;
+    --source) SOURCE="${2:-}"; shift 2 ;;
     --target) TARGET="${2:-}"; shift 2 ;;
     --coder) CODER="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -34,7 +35,9 @@ done
 [[ -n "$REPO" && -n "$URL" ]] || { usage; exit 2; }
 PATH_PART="${URL%%\?*}"
 QUERY="${URL#*\?}"; [[ "$URL" == *\?* ]] || QUERY=""
-if [[ "$PATH_PART" == https://github.com/* && "$PATH_PART" == */compare/* ]]; then
+if [[ -n "$SOURCE" ]]; then
+  : # Explicit source/target is supported for any URL, including a PR overview page.
+elif [[ "$PATH_PART" == https://github.com/* && "$PATH_PART" == */compare/* ]]; then
   RANGE="$(url_decode "${PATH_PART#*/compare/}")"
   if [[ "$RANGE" == *...* ]]; then
     TARGET="${RANGE%%...*}"
@@ -53,8 +56,18 @@ elif [[ "$PATH_PART" == */compare && -n "$QUERY" ]]; then
   [[ -n "$SOURCE" && -n "$TARGET_FROM_URL" ]] || { echo "ERROR: Bitbucket Server compare URL needs sourceBranch and targetBranch query parameters." >&2; exit 2; }
   SOURCE="${SOURCE#refs/heads/}"
   TARGET="${TARGET_FROM_URL#refs/heads/}"
+elif [[ "$PATH_PART" =~ /projects/[^/]+/repos/[^/]+/pull-requests/([0-9]+)(/|$) ]]; then
+  PR_ID="${BASH_REMATCH[1]}"
+  FROM_REF="refs/remotes/origin/ai-pr-reviewer/pr/${PR_ID}/from"
+  TO_REF="refs/remotes/origin/ai-pr-reviewer/pr/${PR_ID}/to"
+  echo "Resolving Bitbucket pull request $PR_ID from the repository remote..."
+  git -C "$REPO" fetch origin \
+    "+refs/pull-requests/${PR_ID}/from:${FROM_REF}" \
+    "+refs/pull-requests/${PR_ID}/to:${TO_REF}"
+  SOURCE="$(git -C "$REPO" rev-parse "$FROM_REF")"
+  TARGET="$(git -C "$REPO" rev-parse "$TO_REF")"
 else
-  echo "ERROR: URL must be a GitHub compare URL, Bitbucket Cloud branches/compare URL, or Bitbucket Server compare?sourceBranch=...&targetBranch=... URL." >&2
+  echo "ERROR: Could not determine branches from this URL. Pass --source <branch> --target <branch>, or use a GitHub/Bitbucket compare URL or Bitbucket PR overview URL." >&2
   exit 2
 fi
 [[ -n "$SOURCE" ]] || { echo "ERROR: Could not determine the source branch from the URL." >&2; exit 2; }
