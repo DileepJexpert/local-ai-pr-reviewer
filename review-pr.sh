@@ -620,12 +620,12 @@ run_agent() {
       echo "1. Click the IDFC Coder window."
       echo "2. Press Cmd + V to paste the review instruction."
       echo "3. Press Enter once."
-      echo "4. If IDFC Coder shows a plan, press Shift + Tab to approve it."
-      echo "5. Type Proceed and press Enter to let it create the review file."
+      echo "4. When you see PLAN MODE / 'Shift+Tab to approve this plan': press Shift + Tab."
+      echo "5. When you then see >>> EXECUTE MODE <<<: type Proceed at the > prompt and press Enter."
       echo "6. Wait until REVIEW COMPLETE appears; do not close Terminal."
       echo "============================================="
       if command -v osascript >/dev/null 2>&1; then
-        osascript -e 'display dialog "IDFC Coder will open next.\n\n1. Click inside IDFC Coder.\n2. Press Command-V to paste the review instruction.\n3. Press Enter once.\n4. If it shows a plan, press Shift-Tab to approve it.\n5. Type Proceed and press Enter.\n6. Wait for REVIEW COMPLETE in Terminal.\n\nThe instruction is already copied to your clipboard." with title "Local AI PR Reviewer - Next Step" buttons {"Cancel", "Open IDFC Coder"} default button "Open IDFC Coder" with icon note'
+        osascript -e 'display dialog "IDFC Coder will open next.\n\n1. Click inside IDFC Coder.\n2. Press Command-V to paste the review instruction.\n3. Press Enter once.\n4. PLAN MODE: press Shift-Tab.\n5. EXECUTE MODE: type Proceed at the > prompt, then press Enter.\n6. Wait for REVIEW COMPLETE in Terminal.\n\nThe instruction is already copied to your clipboard." with title "Local AI PR Reviewer - Next Step" buttons {"Cancel", "Open IDFC Coder"} default button "Open IDFC Coder" with icon note'
       else
         read -r -p "Press Enter to open IDFC Coder, then paste with Cmd+V and press Enter: " _
       fi
