@@ -196,6 +196,15 @@ clean_terminal_transcript() {
   fi
 }
 
+find_review_start_line() {
+  # Interactive IDFC Coder writes both its UI transcript and the eventual review
+  # to the same terminal capture. Prefer the last real review heading, so the
+  # saved report does not begin with minutes of tool activity.
+  local transcript="$1"
+  grep -niE '(^# .*review|^[[:space:]]*[^[:cntrl:]]+(code review (summary|report)|review summary|final review)[^[:cntrl:]]*$|^## executive summary)' "$transcript" \
+    | tail -n 1 | cut -d: -f1 || true
+}
+
 print_open_link() {
   local label="$1" path="$2"
   [[ -f "$path" ]] || return 0
@@ -787,22 +796,24 @@ run_single_review() {
   run_agent
   if [[ ! -f "$AGENT_REPORT" ]]; then
     if [[ -s "$AGENT_LOG" ]]; then
-      log "WARNING: $label review did not create its report file; saving the completed IDFC Coder transcript as the review instead."
+      log "INFO: $label review completed in IDFC Coder. It did not save its own report file, so the reviewer saved the completed terminal response as review.md and review.html."
       CLEAN_TRANSCRIPT="$REVIEW_DIR/agent.cleaned.txt"
       clean_terminal_transcript < "$AGENT_LOG" > "$CLEAN_TRANSCRIPT"
-      REPORT_START_LINE="$(grep -nE '^(# AI PR Architecture Review|AI Pull Request Architecture Review|## Executive Summary)' "$CLEAN_TRANSCRIPT" | tail -n 1 | cut -d: -f1 || true)"
+      REPORT_START_LINE="$(find_review_start_line "$CLEAN_TRANSCRIPT")"
       {
         printf '%s\n\n' "# AI PR Review (captured IDFC Coder transcript)"
         printf '%s\n\n' "IDFC Coder completed its terminal response but did not create the requested report file. This page shows the cleaned final review output; the original terminal transcript remains in agent.log."
         printf '%s\n' '## Captured IDFC Coder output'
         printf '%s\n'
-        printf '%s\n' '```text'
         if [[ -n "$REPORT_START_LINE" ]]; then
           tail -n "+$REPORT_START_LINE" "$CLEAN_TRANSCRIPT"
         else
+          printf '%s\n' '> The reviewer could not identify a separate final-review heading, so the last part of the completed terminal response is shown below.'
+          printf '%s\n'
+          printf '%s\n' '```text'
           tail -n 800 "$CLEAN_TRANSCRIPT"
+          printf '%s\n' '```'
         fi
-        printf '%s\n' '```'
       } > "$final_report"
     else
       log "$label review stopped without creating a report or any agent output."
@@ -870,6 +881,7 @@ else
   echo "Markdown:     $FINAL_REPORT"
   echo "Agent log:   $FINAL_LOG"
   echo "Run log:     $RUN_LOG"
+  [[ ! -f "$AGENT_REPORT" ]] && echo "Report source: captured completed IDFC Coder response"
   [[ -f "${FINAL_COMMENTS%.tsv}.html" ]] && echo "Comment proposals: ${FINAL_COMMENTS%.tsv}.html"
   echo "============================================="
   print_open_link "Review" "$FINAL_HTML"
