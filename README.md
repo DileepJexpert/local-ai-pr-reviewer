@@ -102,6 +102,8 @@ https://bitbucket.org/workspace/repository/branches/compare/feature%2Fmy-change.
 
 The script accepts GitHub/Bitbucket compare links and Bitbucket pull-request overview links. For a Bitbucket overview URL it automatically fetches the PR's `from` and `to` refs from the local repository's `origin` remote. The local folder must therefore be a clone of the **same repository shown in the URL**.
 
+`start-review.sh` uses `--mode interactive` by default because the IDFC Coder terminal application needs a real terminal. When it opens, the reviewer copies one instruction to your clipboard; paste it into IDFC Coder and press Enter. Do not use `--mode stdin` unless your organisation confirms that its IDFC Coder supports prompt input from standard input.
+
 Some company Bitbucket installations expose only the PR `from` ref. That is supported: the reviewer uses the supplied `--target` branch (normally `main`) as the target snapshot.
 
 For example, for this company URL:

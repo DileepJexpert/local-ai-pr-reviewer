@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: ./start-review.sh --repo /path/to/repo --url <GitHub-or-Bitbucket-URL> [--source branch] [--target main] [--coder idfc-coder]"
+  echo "Usage: ./start-review.sh --repo /path/to/repo --url <GitHub-or-Bitbucket-URL> [--source branch] [--target main] [--coder idfc-coder] [--mode interactive|stdin|arg]"
 }
 
 url_decode() {
@@ -19,7 +19,7 @@ query_value() {
   return 1
 }
 
-REPO="" URL="" SOURCE="" TARGET="main" CODER="${IDFC_CODER_CMD:-idfc-coder}"
+REPO="" URL="" SOURCE="" TARGET="main" CODER="${IDFC_CODER_CMD:-idfc-coder}" MODE="interactive"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
@@ -27,12 +27,14 @@ while [[ $# -gt 0 ]]; do
     --source) SOURCE="${2:-}"; shift 2 ;;
     --target) TARGET="${2:-}"; shift 2 ;;
     --coder) CODER="${2:-}"; shift 2 ;;
+    --mode) MODE="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
 
 [[ -n "$REPO" && -n "$URL" ]] || { usage; exit 2; }
+[[ "$MODE" == 'interactive' || "$MODE" == 'stdin' || "$MODE" == 'arg' ]] || { echo "ERROR: --mode must be interactive, stdin, or arg." >&2; exit 2; }
 PATH_PART="${URL%%\?*}"
 QUERY="${URL#*\?}"; [[ "$URL" == *\?* ]] || QUERY=""
 if [[ -n "$SOURCE" ]]; then
@@ -75,5 +77,5 @@ fi
 [[ -n "$SOURCE" ]] || { echo "ERROR: Could not determine the source branch from the URL." >&2; exit 2; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IDFC_CODER_CMD="$CODER" IDFC_CODER_MODE=stdin "$SCRIPT_DIR/review-pr.sh" \
+IDFC_CODER_CMD="$CODER" IDFC_CODER_MODE="$MODE" "$SCRIPT_DIR/review-pr.sh" \
   --repo "$REPO" --source "$SOURCE" --target "$TARGET" --pr "compare-${SOURCE//\//_}"
