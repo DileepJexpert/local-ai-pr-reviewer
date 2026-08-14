@@ -8,7 +8,7 @@ echo "            LOCAL AI PR REVIEWER"
 echo "============================================="
 echo
 read -r -p "Paste GitHub or Bitbucket PR/compare URL: " URL
-read -r -p "Local repository folder: " REPO
+read -r -p "Local repository folder (optional; Enter uses ~/ai-pr-repos cache): " REPO
 read -r -p "AI executable [idfc-coder]: " CODER
 CODER="${CODER:-idfc-coder}"
 echo

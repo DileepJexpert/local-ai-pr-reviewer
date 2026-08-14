@@ -90,6 +90,29 @@ Run the review with one command:
   --coder idfc-coder
 ```
 
+### URL-only repository cache
+
+You no longer need to keep or enter a local service path for every PR. Leave the repository folder blank in `review.command`, or omit `--repo` in Terminal. The launcher derives the service from the GitHub/Bitbucket URL and caches it under:
+
+```text
+~/ai-pr-repos/<project>/<service>/
+```
+
+On the first review it clones the service; later reviews reuse that folder and fetch the newest remote refs automatically. For the company Bitbucket PR example:
+
+```bash
+./start-review.sh \
+  --url 'https://bitbucket.devops.idfcbank.com/projects/JM/repos/loan-letter-generator-service/pull-requests/128/overview' \
+  --target main \
+  --coder idfc-coder
+```
+
+If your organisation requires SSH instead of the derived HTTPS clone URL, run the first review with its Bitbucket **Clone** URL:
+
+```bash
+./start-review.sh --url 'PR_URL' --clone-url 'SSH_OR_HTTPS_CLONE_URL' --target main --coder idfc-coder
+```
+
 Supported Bitbucket URL examples:
 
 ```text

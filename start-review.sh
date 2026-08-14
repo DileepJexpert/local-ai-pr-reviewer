@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: ./start-review.sh --repo /path/to/repo --url <GitHub-or-Bitbucket-URL> [--source branch] [--target main] [--coder idfc-coder] [--mode interactive|stdin|arg] [--review-mode baseline|guided|both]"
+  echo "Usage: ./start-review.sh --url <GitHub-or-Bitbucket-URL> [--repo /path/to/repo] [--cache-root ~/ai-pr-repos] [--clone-url URL] [--source branch] [--target main] [--coder idfc-coder] [--mode interactive|stdin|arg] [--review-mode baseline|guided|both]"
 }
 
 url_decode() {
@@ -20,9 +20,12 @@ query_value() {
 }
 
 REPO="" URL="" SOURCE="" TARGET="main" CODER="${IDFC_CODER_CMD:-idfc-coder}" MODE="interactive" REVIEW_MODE="guided"
+CACHE_ROOT="${AI_PR_REPOSITORY_CACHE:-$HOME/ai-pr-repos}" CLONE_URL=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
+    --cache-root) CACHE_ROOT="${2:-}"; shift 2 ;;
+    --clone-url) CLONE_URL="${2:-}"; shift 2 ;;
     --url) URL="${2:-}"; shift 2 ;;
     --source) SOURCE="${2:-}"; shift 2 ;;
     --target) TARGET="${2:-}"; shift 2 ;;
@@ -34,11 +37,37 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$REPO" && -n "$URL" ]] || { usage; exit 2; }
+[[ -n "$URL" ]] || { usage; exit 2; }
 [[ "$MODE" == 'interactive' || "$MODE" == 'stdin' || "$MODE" == 'arg' ]] || { echo "ERROR: --mode must be interactive, stdin, or arg." >&2; exit 2; }
 [[ "$REVIEW_MODE" == 'baseline' || "$REVIEW_MODE" == 'guided' || "$REVIEW_MODE" == 'both' ]] || { echo "ERROR: --review-mode must be baseline, guided, or both." >&2; exit 2; }
 PATH_PART="${URL%%\?*}"
 QUERY="${URL#*\?}"; [[ "$URL" == *\?* ]] || QUERY=""
+PROJECT_KEY="" REPO_SLUG="" DERIVED_CLONE_URL=""
+if [[ "$PATH_PART" =~ ^https?://([^/]+)/projects/([^/]+)/repos/([^/]+) ]]; then
+  BITBUCKET_HOST="${BASH_REMATCH[1]}"; PROJECT_KEY="${BASH_REMATCH[2]}"; REPO_SLUG="${BASH_REMATCH[3]}"
+  DERIVED_CLONE_URL="https://${BITBUCKET_HOST}/scm/${PROJECT_KEY}/${REPO_SLUG}.git"
+elif [[ "$PATH_PART" =~ ^https?://github.com/([^/]+)/([^/]+) ]]; then
+  PROJECT_KEY="${BASH_REMATCH[1]}"; REPO_SLUG="${BASH_REMATCH[2]}"
+  DERIVED_CLONE_URL="https://github.com/${PROJECT_KEY}/${REPO_SLUG}.git"
+elif [[ "$PATH_PART" =~ ^https?://bitbucket.org/([^/]+)/([^/]+) ]]; then
+  PROJECT_KEY="${BASH_REMATCH[1]}"; REPO_SLUG="${BASH_REMATCH[2]}"
+  DERIVED_CLONE_URL="https://bitbucket.org/${PROJECT_KEY}/${REPO_SLUG}.git"
+fi
+
+if [[ -z "$REPO" ]]; then
+  [[ -n "$REPO_SLUG" ]] || { echo "ERROR: Cannot derive a repository from this URL. Pass --repo explicitly." >&2; exit 2; }
+  REPO="$CACHE_ROOT/$PROJECT_KEY/$REPO_SLUG"
+  if [[ -d "$REPO/.git" ]]; then
+    echo "Using cached repository: $REPO"
+    git -C "$REPO" fetch --prune origin
+  else
+    mkdir -p "$(dirname "$REPO")"
+    CLONE_URL="${CLONE_URL:-$DERIVED_CLONE_URL}"
+    echo "Caching repository for first use: $REPO"
+    echo "Clone URL: $CLONE_URL"
+    git clone "$CLONE_URL" "$REPO"
+  fi
+fi
 if [[ -n "$SOURCE" ]]; then
   : # Explicit source/target is supported for any URL, including a PR overview page.
 elif [[ "$PATH_PART" == https://github.com/* && "$PATH_PART" == */compare/* ]]; then
