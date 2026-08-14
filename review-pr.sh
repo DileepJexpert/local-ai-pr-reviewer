@@ -29,6 +29,7 @@ SOURCE=""
 TARGET=""
 PR_NUMBER="local"
 KEEP_WORKTREE="false"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -110,7 +111,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/ai-pr-review-worktree.XXXXXX")"
 REVIEW_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ai-pr-review-data.XXXXXX")"
 WORKTREE_ADDED="false"
-REPORT_DIR="$REPO/.ai-review-reports"
+REPORT_DIR="$SCRIPT_DIR/reviews"
 mkdir -p "$REPORT_DIR"
 FINAL_REPORT="$REPORT_DIR/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}.md"
 FINAL_LOG="$REPORT_DIR/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}.agent.log"
@@ -142,7 +143,6 @@ git -C "$REPO" worktree add --detach "$WORKTREE" "$SOURCE_REF" >/dev/null
 WORKTREE_ADDED="true"
 
 mkdir -p "$REVIEW_DIR/rules"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cp -R "$SCRIPT_DIR/rules/." "$REVIEW_DIR/rules/"
 
 MERGE_BASE="$(git -C "$REPO" merge-base "$TARGET_REF" "$SOURCE_REF")"
@@ -193,7 +193,6 @@ Read these reviewer-controlled files first:
 - `__REVIEW_DIR__/diff-stat.txt`
 - `__REVIEW_DIR__/pr.diff`
 - `__REVIEW_DIR__/commits.txt`
-- every file under `__REVIEW_DIR__/rules/`
 
 You may and should run Git/search/build/test commands and inspect any repository files needed for evidence. Do not modify application source code. Your only intended output file is `__AGENT_REPORT__` (plus temporary local analysis files under `__REVIEW_DIR__/` if needed).
 
@@ -373,7 +372,29 @@ Look for interactions between otherwise-correct components, new language/library
 
 Do not invent findings just to populate this section. It is valid to report that no additional evidence-backed novel risk was found.
 
-## Stage 8 - Finding rules
+## Stage 8 - Mandatory candidate verification and final judge
+
+Before reading `__REVIEW_DIR__/rules/`, perform a neutral repository and architecture discovery phase. Inspect ADRs/design documents, the changed module, comparable recent modules, and relevant repository history; record the evidence and unknowns in the report. Do not assume DDD, MVC, hexagonal, clean architecture, CQRS, or another named architecture is preferred. Treat architecture drift separately from correctness: a different pattern is not a defect unless repository evidence shows it is unintentional and inconsistent with established conventions.
+
+First perform blind/open-ended defect discovery without organisation rules, creating recommendation-free hypotheses only. Then read every file under `__REVIEW_DIR__/rules/` and perform a separate organisation-rule compliance pass. Keep those hypothesis origins distinct.
+
+Use this mandatory sequence: PR diff → change classification → execution-path discovery → initial review → candidate findings → counter-evidence verification → final judge → report. A candidate BLOCKER or MAJOR must never go directly into the final report.
+
+For each materially changed method, inspect direct callers, indirect callers when needed, direct callees, called helpers/private methods, interfaces/implementations, repositories, Spring annotations/transactions, JPA lifecycle and dirty checking, constraints/indexes/locking, configuration, related tests, and similar implementations. Do not stop at code that looks problematic. Read a called helper before deciding that it does not synchronize state.
+
+For every candidate, independently try to disprove it. Do not create or reveal a recommendation to the verifier; give it only the hypothesis, evidence, scenario, and repository context. Search for relevant helpers, upstream/downstream validation, transaction propagation, dirty checking/save/flush timing, JPA locks, SELECT FOR UPDATE, optimistic locking, Java locks, unique/foreign/check constraints, upserts/triggers, idempotency/deduplication, retry/error handling, AOP/interceptors, configuration, and existing architectural utilities.
+
+For concurrency/idempotency candidates, explicitly inspect upstream lock acquisition, transaction boundaries/propagation, `@Lock`, `PESSIMISTIC_WRITE`, `PESSIMISTIC_READ`, `@Version`, unique constraints, upsert/recovery, and serialized parent-resource access. Do not call a read-check-insert path unsafe until upstream serialization is ruled out.
+
+For state-change candidates, explicitly inspect helpers, indirect setters, entity listeners, JPA dirty checking, save/flush, and transaction commit. Do not infer a field remains unchanged merely because the changed method lacks an explicit setter.
+
+Before retaining BLOCKER or MAJOR, establish: exact event sequence; all participating code/config; prevention mechanisms inspected; why they do not prevent the failure; PR attribution; and direct evidence. Perform a prompt-bias self-check: reject a candidate that primarily exists because this prompt named retry, circuit breaker, locking, indexing, DDD, or another pattern unless independent repository evidence proves it. If evidence is incomplete, downgrade to QUESTION or reject. HIGH confidence requires relevant path/helper/transaction/concurrency/configuration inspection, completed counter-evidence verification, and no invalidating mechanism.
+
+Record each candidate internally as CONFIRMED, DOWNGRADED, QUESTION, or REJECTED. Rejected candidates must not appear as PR findings. Existing target-branch issues go in `Pre-existing Architectural Observations` with `Introduced by PR: NO`; they must not cause CHANGES_REQUIRED. Novel-risk candidates follow this exact verification process.
+
+## Stage 9 - Finding rules
+
+Only a hypothesis that survived the independent counter-evidence pass may become a finding or receive a recommendation. Include the prompt-bias self-check and state separately whether it is a correctness defect, verified architecture drift, or neither.
 
 Every finding must include:
 
@@ -384,6 +405,10 @@ Every finding must include:
 - Impact
 - Recommendation
 - Confidence: HIGH | MEDIUM | LOW
+- Introduced by PR: YES | NO
+- Execution path
+- Counter-evidence checked
+- Why counter-evidence does not invalidate the finding
 
 Rules:
 
@@ -396,7 +421,7 @@ Rules:
 7. Distinguish code defects from governance/process gaps.
 8. Keep style-only observations out unless they materially affect correctness or maintainability.
 
-## Stage 9 - Tests
+## Stage 10 - Tests
 
 For every BLOCKER or MAJOR correctness/resilience finding, state the smallest useful test that would prove the expected behavior or prevent regression.
 
@@ -415,6 +440,18 @@ Create `__AGENT_REPORT__` with this structure:
 
 ## Change Impact
 Describe the affected execution paths and technologies.
+
+## Review Verification
+- Candidate findings: N
+- Confirmed: N
+- Downgraded: N
+- Questions: N
+- Rejected after counter-evidence: N
+
+## Neutral Architecture Discovery
+- ADR/design evidence, if any
+- Current-module, comparable-module, and history evidence
+- Discovered conventions and unresolved unknowns
 
 ## Blockers
 All evidence-backed BLOCKER findings, or `None`.
