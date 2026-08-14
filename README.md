@@ -125,6 +125,22 @@ use a local clone of `loan-letter-generator-service`, not another project such a
 
 This is the current recommended command for the IDFC Bitbucket PR shown above. The launcher opens IDFC Coder in interactive mode by default. When it opens, paste the reviewer instruction that was copied to the clipboard with `Cmd + V`, then press Enter. Do not add `--mode stdin`.
 
+### macOS review mode
+
+When you double-click `review.command`, it asks which review to run:
+
+1. **BASELINE** — IDFC Coder uses only the neutral review task; the custom ai-pr-review rules are not copied or injected.
+2. **GUIDED** — the current/default review; it includes this project's custom ai-pr-review rules.
+3. **BOTH** — prepares the PR once, keeps the same worktree and frozen source/target/merge-base refs, then runs BASELINE followed by GUIDED. IDFC Coder will ask for the normal paste/approve/proceed interaction twice.
+
+For a terminal command, add one of these values:
+
+```bash
+--review-mode baseline
+--review-mode guided
+--review-mode both
+```
+
 While the review runs, Terminal shows timestamped stages such as worktree creation, frozen Git refs, diff preparation, IDFC launch, report detection, and cleanup. The same messages are saved in `reviews/*.review.log`; the full IDFC Coder session is saved in `reviews/*.agent.log` beside the final report.
 
 At the end, Terminal prints either `REVIEW COMPLETE` with the exact review report, agent-log, and run-log paths, or `REVIEW FAILED` with the error exit code and available diagnostic-log paths.

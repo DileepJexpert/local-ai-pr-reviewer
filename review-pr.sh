@@ -29,6 +29,7 @@ SOURCE=""
 TARGET=""
 PR_NUMBER="local"
 KEEP_WORKTREE="false"
+REVIEW_MODE="guided"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 while [[ $# -gt 0 ]]; do
@@ -37,6 +38,7 @@ while [[ $# -gt 0 ]]; do
     --source) SOURCE="${2:-}"; shift 2 ;;
     --target) TARGET="${2:-}"; shift 2 ;;
     --pr) PR_NUMBER="${2:-}"; shift 2 ;;
+    --review-mode) REVIEW_MODE="${2:-}"; shift 2 ;;
     --keep-worktree) KEEP_WORKTREE="true"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
@@ -45,6 +47,10 @@ done
 
 if [[ -z "$REPO" || -z "$TARGET" ]]; then
   usage
+  exit 2
+fi
+if [[ "$REVIEW_MODE" != "baseline" && "$REVIEW_MODE" != "guided" && "$REVIEW_MODE" != "both" ]]; then
+  echo "ERROR: --review-mode must be baseline, guided, or both." >&2
   exit 2
 fi
 
@@ -165,8 +171,10 @@ WORKTREE_ADDED="true"
 log "Stage 1/6 complete: worktree created."
 
 log "Stage 2/6: copying reviewer rules and freezing Git evidence."
-mkdir -p "$REVIEW_DIR/rules"
-cp -R "$SCRIPT_DIR/rules/." "$REVIEW_DIR/rules/"
+if [[ "$REVIEW_MODE" != "baseline" ]]; then
+  mkdir -p "$REVIEW_DIR/rules"
+  cp -R "$SCRIPT_DIR/rules/." "$REVIEW_DIR/rules/"
+fi
 
 MERGE_BASE="$(git -C "$REPO" merge-base "$TARGET_REF" "$SOURCE_REF")"
 SOURCE_SHA="$(git -C "$REPO" rev-parse "$SOURCE_REF")"
@@ -545,6 +553,42 @@ Useful commands include:
 \`git log --oneline ${MERGE_BASE}..HEAD\`
 EOF_REFS
 
+write_baseline_task() {
+  local output_file="$1"
+  local output_report="$2"
+  cat > "$output_file" <<EOF_BASELINE
+# Neutral Pull Request Review Task
+
+Review the source checkout at: $WORKTREE
+Use reviewer-controlled evidence at: $REVIEW_DIR
+
+This is BASELINE mode. Do not read, load, quote, or apply the custom ai-pr-review rules. Review the whole frozen repository snapshot and merge-base diff for evidence-backed correctness, security, reliability, compatibility, and test issues. Do not assume a named architecture or a preferred pattern. Treat initial observations as hypotheses and independently look for counter-evidence before retaining them.
+
+Read changed-files.txt, diff-stat.txt, pr.diff, commits.txt, and PR_CONTEXT.md. Do not write inside the source checkout.
+
+Create the review report at: $output_report
+
+Include: executive summary, change impact, findings with severity/evidence/failure scenario/impact/recommendation/confidence, positive observations, test gaps, and final recommendation. Do not report issues already present in the merge base.
+
+Frozen refs: source=$SOURCE_SHA target=$TARGET_SHA merge-base=$MERGE_BASE
+EOF_BASELINE
+}
+
+GUIDED_TASK_FILE="$TASK_FILE"
+GUIDED_AGENT_REPORT="$AGENT_REPORT"
+GUIDED_AGENT_LOG="$AGENT_LOG"
+if [[ "$REVIEW_MODE" == "baseline" ]]; then
+  rm -rf "$REVIEW_DIR/rules"
+  write_baseline_task "$TASK_FILE" "$AGENT_REPORT"
+elif [[ "$REVIEW_MODE" == "both" ]]; then
+  GUIDED_TASK_FILE="$REVIEW_DIR/REVIEW_TASK.guided.md"
+  mv "$TASK_FILE" "$GUIDED_TASK_FILE"
+  BASELINE_TASK_FILE="$REVIEW_DIR/REVIEW_TASK.baseline.md"
+  BASELINE_AGENT_REPORT="$REVIEW_DIR/ai-pr-review-baseline.md"
+  BASELINE_AGENT_LOG="$REVIEW_DIR/agent-baseline.log"
+  write_baseline_task "$BASELINE_TASK_FILE" "$BASELINE_AGENT_REPORT"
+fi
+
 cd "$WORKTREE"
 
 echo
@@ -596,28 +640,59 @@ run_agent() {
   log "Stage 4/6 complete: idfc-coder exited."
 }
 
-run_agent
+run_single_review() {
+  local label="$1" task="$2" report="$3" agent_log="$4" final_report="$5" final_log="$6"
+  TASK_FILE="$task"; AGENT_REPORT="$report"; AGENT_LOG="$agent_log"
+  echo
+  echo "========== $label REVIEW =========="
+  echo "Task: $TASK_FILE"
+  log "Starting $label review against the frozen source, target, and merge-base refs."
+  run_agent
+  if [[ ! -f "$AGENT_REPORT" ]]; then
+    log "$label review stopped without creating its report."
+    return 3
+  fi
+  cp "$AGENT_REPORT" "$final_report"
+  [[ -f "$AGENT_LOG" ]] && cp "$AGENT_LOG" "$final_log"
+  log "$label review report saved: $final_report"
+}
 
-if [[ -f "$AGENT_REPORT" ]]; then
-  log "Stage 5/6: reviewer report found; copying final report and agent session log."
-  cp "$AGENT_REPORT" "$FINAL_REPORT"
-  cp "$AGENT_LOG" "$FINAL_LOG"
+if [[ "$REVIEW_MODE" == "both" ]]; then
+  BASELINE_FINAL_REPORT="${FINAL_REPORT%.md}-baseline.md"
+  GUIDED_FINAL_REPORT="${FINAL_REPORT%.md}-guided.md"
+  BASELINE_FINAL_LOG="${FINAL_LOG%.agent.log}-baseline.agent.log"
+  GUIDED_FINAL_LOG="${FINAL_LOG%.agent.log}-guided.agent.log"
+  COMPARISON_FILE="${FINAL_REPORT%.md}-comparison.md"
+  run_single_review "BASELINE" "$BASELINE_TASK_FILE" "$BASELINE_AGENT_REPORT" "$BASELINE_AGENT_LOG" "$BASELINE_FINAL_REPORT" "$BASELINE_FINAL_LOG"
+  run_single_review "GUIDED" "$GUIDED_TASK_FILE" "$GUIDED_AGENT_REPORT" "$GUIDED_AGENT_LOG" "$GUIDED_FINAL_REPORT" "$GUIDED_FINAL_LOG"
+  cat > "$COMPARISON_FILE" <<EOF_COMPARISON
+# Baseline and Guided Review Outputs
+
+Both reviews used the same prepared worktree and frozen source SHA ($SOURCE_SHA), target SHA ($TARGET_SHA), and merge base ($MERGE_BASE).
+
+- Baseline report: $BASELINE_FINAL_REPORT
+- Guided report: $GUIDED_FINAL_REPORT
+
+Compare the two reports to identify findings that appear only when custom ai-pr-review rules are applied.
+EOF_COMPARISON
+  log "Both-mode comparison index saved: $COMPARISON_FILE"
+  echo
+  echo "============================================="
+  echo "REVIEW COMPLETE - BOTH MODES"
+  echo "Baseline:   $BASELINE_FINAL_REPORT"
+  echo "Guided:     $GUIDED_FINAL_REPORT"
+  echo "Comparison: $COMPARISON_FILE"
+  echo "Run log:    $RUN_LOG"
+  echo "============================================="
+else
+  DISPLAY_MODE="$(printf '%s' "$REVIEW_MODE" | tr '[:lower:]' '[:upper:]')"
+  run_single_review "$DISPLAY_MODE" "$TASK_FILE" "$AGENT_REPORT" "$AGENT_LOG" "$FINAL_REPORT" "$FINAL_LOG"
   log "Stage 6/6 complete: review output saved."
   echo
   echo "============================================="
-  echo "REVIEW COMPLETE"
+  echo "REVIEW COMPLETE - $DISPLAY_MODE MODE"
   echo "Open review: $FINAL_REPORT"
   echo "Agent log:   $FINAL_LOG"
   echo "Run log:     $RUN_LOG"
   echo "============================================="
-else
-  log "Review stopped: idfc-coder exited without creating the requested report."
-  echo
-  echo "WARNING: idfc-coder exited but the reviewer report was not created: $AGENT_REPORT" >&2
-  echo "Worktree: $WORKTREE" >&2
-  echo "Review data: $REVIEW_DIR" >&2
-  echo "Agent log: $FINAL_LOG" >&2
-  echo "Use --keep-worktree if you want to inspect the checked-out source after exit." >&2
-  review_failed 3
-  exit 3
 fi
