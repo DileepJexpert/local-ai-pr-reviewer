@@ -61,11 +61,24 @@ if [[ -z "$REPO" ]]; then
     echo "Using cached repository: $REPO"
     git -C "$REPO" fetch --prune origin
   else
+    if [[ -e "$REPO" ]]; then
+      echo "ERROR: Repository cache path exists but is not a Git repository: $REPO" >&2
+      echo "Use the local service folder, or move this incomplete cache folder aside before retrying." >&2
+      exit 1
+    fi
     mkdir -p "$(dirname "$REPO")"
     CLONE_URL="${CLONE_URL:-$DERIVED_CLONE_URL}"
+    CLONE_TMP="$(mktemp -d "$(dirname "$REPO")/.ai-pr-review-clone.XXXXXX")"
+    trap '[[ -n "${CLONE_TMP:-}" && -d "$CLONE_TMP" ]] && rm -rf -- "$CLONE_TMP"' EXIT
     echo "Caching repository for first use: $REPO"
     echo "Clone URL: $CLONE_URL"
-    git clone "$CLONE_URL" "$REPO"
+    if ! git clone "$CLONE_URL" "$CLONE_TMP/repository"; then
+      echo "ERROR: Could not clone the repository. For company Bitbucket, paste your already-cloned local service folder when prompted, or pass your organisation's authenticated SSH Clone URL with --clone-url." >&2
+      exit 1
+    fi
+    mv "$CLONE_TMP/repository" "$REPO"
+    rmdir "$CLONE_TMP" 2>/dev/null || true
+    CLONE_TMP=""
   fi
 fi
 if [[ -n "$SOURCE" ]]; then

@@ -32,8 +32,8 @@ Start the simple launcher:
 Answer its questions as follows:
 
 1. **Paste GitHub or Bitbucket PR/compare URL** — paste the complete Bitbucket PR URL.
-2. **Local repository folder** — paste the local folder of the same service, for example `/Users/your-name/Documents/work/loan-letter-generator-service`. You can instead press Enter to use the automatic `~/ai-pr-repos` cache.
-3. **AI executable** — press Enter for `idfc-coder`.
+2. **Local repository folder** — for company Bitbucket, paste the already-cloned local folder of the same service, for example `/Users/your-name/Documents/work/loan-letter-generator-service`. This is the recommended option. Press Enter only when your Mac can authenticate to the automatic `~/ai-pr-repos` HTTPS cache.
+3. **AI executable** — press Enter for `idfc-coder`. Do **not** type `2` here.
 4. **Review mode** — enter `2` for the normal guided review. Enter `1` for a neutral baseline review or `3` to run both and compare them.
 
 ### When IDFC Coder opens

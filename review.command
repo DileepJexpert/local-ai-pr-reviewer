@@ -8,10 +8,11 @@ echo "            LOCAL AI PR REVIEWER"
 echo "============================================="
 echo
 read -r -p "Paste GitHub or Bitbucket PR/compare URL: " URL
-read -r -p "Local repository folder (optional; Enter uses ~/ai-pr-repos cache): " REPO
-read -r -p "AI executable [idfc-coder]: " CODER
+read -r -p "Local repository folder (recommended for company Bitbucket; Enter uses cache): " REPO
+read -r -p "AI executable [idfc-coder] (press Enter): " CODER
 CODER="${CODER:-idfc-coder}"
 echo
+echo "Important: select 1, 2, or 3 only at the next 'Choice' question."
 echo "Choose review mode:"
 echo "  1) BASELINE - neutral IDFC review without custom ai-pr-review rules"
 echo "  2) GUIDED   - use this project's custom ai-pr-review rules"
