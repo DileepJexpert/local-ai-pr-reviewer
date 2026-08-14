@@ -566,21 +566,24 @@ run_agent() {
       "$IDFC_CODER_CMD" "$TASK_CONTENT" 2>&1 | tee "$AGENT_LOG"
       ;;
     interactive)
-      cat <<'INTERACTIVE'
-The exact non-interactive syntax of your internal idfc-coder is organization-specific,
-so interactive mode avoids inventing unsupported flags.
-
-When idfc-coder opens, give it this single instruction:
-
-  Read the review task path shown above and execute the complete review. Create the output report path specified in that task.
-
-On macOS the instruction has also been copied to the clipboard when pbcopy is available.
-INTERACTIVE
       INSTRUCTION="Read $TASK_FILE and execute the complete review. Create $AGENT_REPORT as instructed."
       if command -v pbcopy >/dev/null 2>&1; then
         printf '%s' "$INSTRUCTION" | pbcopy
       fi
-      log "IDFC Coder is interactive. Paste the copied instruction, then press Enter."
+      echo
+      echo "============================================="
+      echo "ACTION REQUIRED - IDFC CODER IS ABOUT TO OPEN"
+      echo "1. Click the IDFC Coder window."
+      echo "2. Press Cmd + V to paste the review instruction."
+      echo "3. Press Enter once."
+      echo "4. Wait until IDFC Coder finishes; do not close Terminal."
+      echo "============================================="
+      if command -v osascript >/dev/null 2>&1; then
+        osascript -e 'display dialog "IDFC Coder will open next.\n\n1. Click inside IDFC Coder.\n2. Press Command-V to paste the review instruction.\n3. Press Enter once.\n4. Wait for REVIEW COMPLETE in Terminal.\n\nThe instruction is already copied to your clipboard." with title "Local AI PR Reviewer - Next Step" buttons {"Cancel", "Open IDFC Coder"} default button "Open IDFC Coder" with icon note'
+      else
+        read -r -p "Press Enter to open IDFC Coder, then paste with Cmd+V and press Enter: " _
+      fi
+      log "IDFC Coder is interactive. The review instruction is on the clipboard; paste it with Cmd+V, then press Enter."
       if command -v script >/dev/null 2>&1; then
         script -q "$AGENT_LOG" "$IDFC_CODER_CMD"
       else
