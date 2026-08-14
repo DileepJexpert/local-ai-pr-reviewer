@@ -117,17 +117,28 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/ai-pr-review-worktree.XXXXXX")"
 REVIEW_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ai-pr-review-data.XXXXXX")"
 WORKTREE_ADDED="false"
-REPORT_DIR="$SCRIPT_DIR/reviews"
+REPORT_ROOT="$SCRIPT_DIR/reviews"
+REPORT_DIR="$REPORT_ROOT/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}"
 mkdir -p "$REPORT_DIR"
-FINAL_REPORT="$REPORT_DIR/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}.md"
-FINAL_LOG="$REPORT_DIR/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}.agent.log"
-RUN_LOG="$REPORT_DIR/pr-${PR_NUMBER}-${SAFE_SOURCE}-${STAMP}.review.log"
+FINAL_REPORT="$REPORT_DIR/review.md"
+FINAL_HTML="$REPORT_DIR/review.html"
+FINAL_LOG="$REPORT_DIR/agent.log"
+RUN_LOG="$REPORT_DIR/review.log"
 TASK_FILE="$REVIEW_DIR/REVIEW_TASK.md"
 AGENT_REPORT="$REVIEW_DIR/ai-pr-review.md"
 AGENT_LOG="$REVIEW_DIR/agent.log"
 
 log() {
   printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$RUN_LOG"
+}
+
+generate_html_report() {
+  local markdown_file="$1" html_file="$2"
+  {
+    printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"><title>AI PR Review</title><style>body{font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:1000px;margin:40px auto;padding:0 24px;color:#172033;background:#f6f8fb}main{background:#fff;border-radius:12px;padding:28px;box-shadow:0 1px 4px #0002}pre{white-space:pre-wrap;word-wrap:break-word;line-height:1.5;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body><main><h1>AI Pull Request Review</h1><pre>'
+    sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' "$markdown_file"
+    printf '%s\n' '</pre></main></body></html>'
+  } > "$html_file"
 }
 
 review_failed() {
@@ -641,7 +652,7 @@ run_agent() {
 }
 
 run_single_review() {
-  local label="$1" task="$2" report="$3" agent_log="$4" final_report="$5" final_log="$6"
+  local label="$1" task="$2" report="$3" agent_log="$4" final_report="$5" final_log="$6" final_html
   TASK_FILE="$task"; AGENT_REPORT="$report"; AGENT_LOG="$agent_log"
   echo
   echo "========== $label REVIEW =========="
@@ -654,6 +665,8 @@ run_single_review() {
   fi
   cp "$AGENT_REPORT" "$final_report"
   [[ -f "$AGENT_LOG" ]] && cp "$AGENT_LOG" "$final_log"
+  final_html="${final_report%.md}.html"
+  generate_html_report "$final_report" "$final_html"
   log "$label review report saved: $final_report"
 }
 
@@ -675,6 +688,8 @@ Both reviews used the same prepared worktree and frozen source SHA ($SOURCE_SHA)
 
 Compare the two reports to identify findings that appear only when custom ai-pr-review rules are applied.
 EOF_COMPARISON
+  COMPARISON_HTML="${COMPARISON_FILE%.md}.html"
+  generate_html_report "$COMPARISON_FILE" "$COMPARISON_HTML"
   log "Both-mode comparison index saved: $COMPARISON_FILE"
   echo
   echo "============================================="
@@ -682,8 +697,10 @@ EOF_COMPARISON
   echo "Baseline:   $BASELINE_FINAL_REPORT"
   echo "Guided:     $GUIDED_FINAL_REPORT"
   echo "Comparison: $COMPARISON_FILE"
+  echo "Open comparison: $COMPARISON_HTML"
   echo "Run log:    $RUN_LOG"
   echo "============================================="
+  [[ "$(uname)" != "Darwin" ]] || open "$COMPARISON_HTML" || log "WARNING: could not open comparison HTML automatically."
 else
   DISPLAY_MODE="$(printf '%s' "$REVIEW_MODE" | tr '[:lower:]' '[:upper:]')"
   run_single_review "$DISPLAY_MODE" "$TASK_FILE" "$AGENT_REPORT" "$AGENT_LOG" "$FINAL_REPORT" "$FINAL_LOG"
@@ -691,8 +708,11 @@ else
   echo
   echo "============================================="
   echo "REVIEW COMPLETE - $DISPLAY_MODE MODE"
-  echo "Open review: $FINAL_REPORT"
+  echo "Review folder: $REPORT_DIR"
+  echo "Open review:  $FINAL_HTML"
+  echo "Markdown:     $FINAL_REPORT"
   echo "Agent log:   $FINAL_LOG"
   echo "Run log:     $RUN_LOG"
   echo "============================================="
+  [[ "$(uname)" != "Darwin" ]] || open "$FINAL_HTML" || log "WARNING: could not open review HTML automatically."
 fi

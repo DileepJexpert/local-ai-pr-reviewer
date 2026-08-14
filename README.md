@@ -143,6 +143,20 @@ For a terminal command, add one of these values:
 
 While the review runs, Terminal shows timestamped stages such as worktree creation, frozen Git refs, diff preparation, IDFC launch, report detection, and cleanup. The same messages are saved in `reviews/*.review.log`; the full IDFC Coder session is saved in `reviews/*.agent.log` beside the final report.
 
+All final macOS output is stored beside the reviewer scripts, never only in a temporary `/var/folders/...` path. Each run gets one easy-to-find folder:
+
+```text
+local-ai-pr-reviewer/
+  reviews/
+    pr-128-feature-name-20260814-120000/
+      review.html      ← opens automatically in your browser
+      review.md
+      review.log
+      agent.log
+```
+
+The temporary path shown inside IDFC Coder is only its working file. After IDFC Coder exits, the reviewer copies it to this permanent `reviews/` folder and opens `review.html`.
+
 At the end, Terminal prints either `REVIEW COMPLETE` with the exact review report, agent-log, and run-log paths, or `REVIEW FAILED` with the error exit code and available diagnostic-log paths.
 
 If a company Bitbucket configuration does not expose PR refs through Git, supply branches explicitly with any URL:
