@@ -62,14 +62,58 @@ If double-clicking `review.cmd` opens an editor on Windows, double-click `Review
 
 ### macOS
 
-Copy the folder to your Mac once, then make the launch files executable:
+#### Apple Silicon / M-series quick start
+
+These steps work on an M1, M2, M3, or M4 Mac. Open **Terminal** and first verify your organisation's reviewer command is installed and authenticated:
 
 ```bash
+idfc-coder --help
+```
+
+Clone the reviewer and the application repository. Use `git pull` instead of cloning again on later runs.
+
+```bash
+mkdir -p ~/tools ~/work
+git clone git@github.com:DileepJexpert/local-ai-pr-reviewer.git ~/tools/local-ai-pr-reviewer
+git clone git@github.com:DileepJexpert/katasticho.git ~/work/katasticho
 cd ~/tools/local-ai-pr-reviewer
 chmod +x review.command start-review.sh review-pr.sh
 ```
 
-Double-click `review.command` in Finder, or run `./review.command` in Terminal. Paste the GitHub compare URL, local cloned repository path, and your installed `idfc-coder` command. Reports are written to `reviews/` inside this reviewer folder.
+Run the review with one command:
+
+```bash
+./start-review.sh \
+  --repo "$HOME/work/katasticho" \
+  --url 'https://github.com/DileepJexpert/katasticho/compare/codex/contact-roles-field-sales-planning?expand=1' \
+  --target main \
+  --coder idfc-coder
+```
+
+The script supplies the review task to `idfc-coder` through standard input. If your organisation's command requires interactive mode instead, run:
+
+```bash
+IDFC_CODER_MODE=interactive ./review-pr.sh \
+  --repo "$HOME/work/katasticho" \
+  --source 'codex/contact-roles-field-sales-planning' \
+  --target main \
+  --pr 'contact-roles'
+```
+
+The report is saved in `~/tools/local-ai-pr-reviewer/reviews/`. In Finder, open that folder with:
+
+```bash
+open "$HOME/tools/local-ai-pr-reviewer/reviews"
+```
+
+For later runs, update both repositories:
+
+```bash
+cd ~/tools/local-ai-pr-reviewer && git pull origin main
+cd ~/work/katasticho && git fetch --prune origin
+```
+
+`review.command` is an optional Finder launcher; double-click it and paste the compare URL, repository folder, and `idfc-coder` when prompted.
 
 The optional Flutter Windows UI is in `reviewer_launcher`. It runs this same command after you paste a URL. It needs a callable local reviewer executable such as `idfc-coder` or a trusted wrapper which reads the task from standard input and writes the requested `findings.json`.
 
@@ -89,97 +133,6 @@ The command prints a temporary worktree, a reviewer-controlled `REVIEW_TASK.md`,
 ```powershell
 .\generate-report.ps1 -FindingsPath 'C:\Users\<you>\AI-PR-Reviews\PR-1287-...\findings.json' -OutputPath 'C:\Users\<you>\AI-PR-Reviews\PR-1287-...\review.html'
 ```
-
-## 1. Copy this folder to your Mac
-
-Example:
-
-```bash
-mkdir -p ~/tools/local-ai-pr-reviewer
-cp -R local-ai-pr-reviewer/* ~/tools/local-ai-pr-reviewer/
-cd ~/tools/local-ai-pr-reviewer
-chmod +x review-pr.sh
-```
-
-## 2. Review the current branch against develop
-
-```bash
-./review-pr.sh \
-  --repo /path/to/your/local/repository \
-  --target develop
-```
-
-## 3. Review another developer's source branch
-
-```bash
-./review-pr.sh \
-  --repo /path/to/your/local/repository \
-  --source feature/consumer-request-lookup \
-  --target develop \
-  --pr 1234
-```
-
-The script runs `git fetch --prune origin`, creates a temporary detached worktree at the source ref, and calculates the PR change using the merge base.
-
-## 4. idfc-coder invocation mode
-
-Because `idfc-coder` is an internal command and its non-interactive flags are not known here, the default is safe interactive mode:
-
-```bash
-IDFC_CODER_MODE=interactive ./review-pr.sh --repo /repo --source feature/x --target develop
-```
-
-The script opens `idfc-coder` from the PR worktree, displays the reviewer-controlled task path, and copies an instruction using that path to the macOS clipboard:
-
-```text
-Read the displayed review task path and execute the complete review. Create the output report path specified in that task.
-```
-
-Paste it into the agent and run the review.
-
-If your `idfc-coder` accepts prompts on stdin, you can make the whole run non-interactive:
-
-```bash
-IDFC_CODER_MODE=stdin ./review-pr.sh --repo /repo --source feature/x --target develop
-```
-
-If it accepts a prompt as a positional argument:
-
-```bash
-IDFC_CODER_MODE=arg ./review-pr.sh --repo /repo --source feature/x --target develop
-```
-
-If your CLI command is not literally `idfc-coder`, override it with a single executable name or executable path. For commands that require fixed arguments, use a trusted wrapper script as the executable:
-
-```bash
-IDFC_CODER_CMD='/path/to/your-idfc-coder-wrapper' IDFC_CODER_MODE=stdin ./review-pr.sh ...
-```
-
-`IDFC_CODER_CMD` is never evaluated as shell code; shell operators and inline arguments are intentionally rejected.
-
-## 5. Output
-
-Reports are copied back into the original repository under:
-
-```text
-.ai-review-reports/
-```
-
-Example:
-
-```text
-.ai-review-reports/pr-1234-feature_consumer-request-lookup-20260812-151500.md
-```
-
-The raw agent console output is also stored beside it as `.agent.log`. Reviewer rules, diffs, prompts, temporary output, and the agent's initial report are stored outside the checked-out PR worktree.
-
-## 6. Keep the temporary worktree for debugging
-
-```bash
-./review-pr.sh --repo /repo --source feature/x --target develop --keep-worktree
-```
-
-This also keeps the separate reviewer-data directory and prints its path, so the generated task, rules, diffs, and agent output remain available without writing them into the PR checkout.
 
 ## Design
 
