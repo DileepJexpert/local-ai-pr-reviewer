@@ -23,7 +23,7 @@ HTML
     name="$(basename "$report_dir")"
     relative="${report_dir#$REPORT_ROOT/}"
     printf '<article class="card"><h2>%s</h2><p>Folder: %s</p><div class="links">' "$(printf '%s' "$name" | html_escape)" "$(printf '%s' "$relative" | html_escape)"
-    for file in review.html review.md review.log agent.log review-baseline.html review-guided.html review-comparison.html; do
+    for file in review.html review.md review.log agent.log proposed-pr-comments.html proposed-pr-comments.tsv review-baseline.html review-guided.html review-comparison.html proposed-pr-comments-baseline.html proposed-pr-comments-guided.html; do
       [[ -f "$report_dir/$file" ]] || continue
       printf '<a href="%s/%s">%s</a>' "$relative" "$file" "$file"
     done

@@ -176,9 +176,24 @@ local-ai-pr-reviewer/
       review.md
       review.log
       agent.log
+      proposed-pr-comments.html  (local, approval-first comment list)
+      proposed-pr-comments.tsv
 ```
 
 The temporary path shown inside IDFC Coder is only its working file. After IDFC Coder exits, the reviewer copies it to this permanent `reviews/` folder and opens `review.html`.
+
+### Proposed Bitbucket comments (you approve first)
+
+After a new review completes, open its local comment proposal page with:
+
+```bash
+chmod +x review-comments.command
+./review-comments.command
+```
+
+The page contains only review-ready comments that IDFC Coder could tie to a changed file and line. It clearly shows the path, line number, title, and suggested message. Read each one, tick only the comments you agree with, and use **Copy selected comments** if useful.
+
+Nothing is posted to Bitbucket automatically. Open the PR, open the shown changed file, click the matching line number, choose **Add comment**, then paste or type the selected comment. Use `GENERAL` proposals as a normal PR-level comment rather than an inline comment. This keeps the final approval and any external change under your control.
 
 ### Review dashboard
 
@@ -188,7 +203,7 @@ Double-click `open-dashboard.command`, or run this in Terminal:
 ./generate-dashboard.sh
 ```
 
-It opens `reviews/index.html`, a local browser page that lists all completed reviews with links to each HTML report, Markdown report, run log, and IDFC agent log.
+It opens `reviews/index.html`, a local browser page that lists all completed reviews with links to each HTML report, Markdown report, proposed-comment page, run log, and IDFC agent log.
 
 At the end, Terminal prints either `REVIEW COMPLETE` with the exact review report, agent-log, and run-log paths, or `REVIEW FAILED` with the error exit code and available diagnostic-log paths.
 

@@ -108,5 +108,5 @@ fi
 [[ -n "$SOURCE" ]] || { echo "ERROR: Could not determine the source branch from the URL." >&2; exit 2; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IDFC_CODER_CMD="$CODER" IDFC_CODER_MODE="$MODE" "$SCRIPT_DIR/review-pr.sh" \
+AI_PR_URL="$URL" IDFC_CODER_CMD="$CODER" IDFC_CODER_MODE="$MODE" "$SCRIPT_DIR/review-pr.sh" \
   --repo "$REPO" --source "$SOURCE" --target "$TARGET" --pr "compare-${SOURCE//\//_}" --review-mode "$REVIEW_MODE"

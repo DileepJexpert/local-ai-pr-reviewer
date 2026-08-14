@@ -16,6 +16,8 @@ echo "Choose review mode:"
 echo "  1) BASELINE - neutral IDFC review without custom ai-pr-review rules"
 echo "  2) GUIDED   - use this project's custom ai-pr-review rules"
 echo "  3) BOTH     - run baseline, then guided, on the same prepared PR snapshot"
+echo
+echo "After review: run ./review-comments.command to open local proposed comments."
 read -r -p "Choice [2]: " MODE_CHOICE
 case "${MODE_CHOICE:-2}" in
   1) REVIEW_MODE="baseline" ;;

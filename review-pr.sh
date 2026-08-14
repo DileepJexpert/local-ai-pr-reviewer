@@ -127,6 +127,10 @@ RUN_LOG="$REPORT_DIR/review.log"
 TASK_FILE="$REVIEW_DIR/REVIEW_TASK.md"
 AGENT_REPORT="$REVIEW_DIR/ai-pr-review.md"
 AGENT_LOG="$REVIEW_DIR/agent.log"
+AGENT_COMMENTS="$REVIEW_DIR/proposed-pr-comments.tsv"
+FINAL_COMMENTS="$REPORT_DIR/proposed-pr-comments.tsv"
+FINAL_COMMENTS_HTML="$REPORT_DIR/proposed-pr-comments.html"
+PR_URL="${AI_PR_URL:-}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$RUN_LOG"
@@ -138,6 +142,42 @@ generate_html_report() {
     printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"><title>AI PR Review</title><style>body{font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:1000px;margin:40px auto;padding:0 24px;color:#172033;background:#f6f8fb}main{background:#fff;border-radius:12px;padding:28px;box-shadow:0 1px 4px #0002}pre{white-space:pre-wrap;word-wrap:break-word;line-height:1.5;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body><main><h1>AI Pull Request Review</h1><pre>'
     sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' "$markdown_file"
     printf '%s\n' '</pre></main></body></html>'
+  } > "$html_file"
+}
+
+generate_comment_proposals_html() {
+  local proposals_file="$1" html_file="$2" pr_url="$3"
+  local pr_link="" safe_pr_url
+  if [[ "$pr_url" =~ ^https?:// ]]; then
+    safe_pr_url="$(printf '%s' "$pr_url" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g;s/\"/\&quot;/g')"
+    pr_link="<p><a href=\"$safe_pr_url\" target=\"_blank\" rel=\"noopener\">Open the pull request in Bitbucket</a></p>"
+  fi
+  {
+    cat <<'HTML'
+<!doctype html><html><head><meta charset="utf-8"><title>Proposed PR Comments</title><style>
+body{font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:1100px;margin:40px auto;padding:0 24px;background:#f6f8fb;color:#172033}.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 4px #0002;margin:16px 0}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #e5e7eb}code{white-space:nowrap}button{padding:8px 12px;border:0;border-radius:6px;background:#0756b8;color:#fff;cursor:pointer}.note{color:#475467}
+</style></head><body><section class="card"><h1>Proposed Bitbucket PR comments</h1><p class="note">These are local proposals only. Nothing is sent to Bitbucket by this page. Read and select a comment, then use its file and line in the Bitbucket PR screen.</p>
+HTML
+    printf '%s\n' "$pr_link"
+    printf '%s\n' '<p><button onclick="copySelected()">Copy selected comments</button></p><table><thead><tr><th>Select</th><th>Location</th><th>Suggested comment</th></tr></thead><tbody>'
+    local id disposition file line title comment
+    while IFS=$'\t' read -r id disposition file line title comment; do
+      [[ -n "$id" && "$id" != \#* ]] || continue
+      [[ "$disposition" == "INLINE" || "$disposition" == "GENERAL" ]] || continue
+      printf '<tr><td><input type="checkbox" class="proposal" data-text="[%s] %s:%s — %s"></td><td><strong>%s</strong><br><code>%s:%s</code><br><span class="note">%s</span></td><td>%s</td></tr>\n' \
+        "$(printf '%s' "$id" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g;s/\"/\&quot;/g')" \
+        "$(printf '%s' "$file" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g;s/\"/\&quot;/g')" \
+        "$(printf '%s' "$line" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g;s/\"/\&quot;/g')" \
+        "$(printf '%s' "$comment" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g;s/\"/\&quot;/g')" \
+        "$(printf '%s' "$title" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g')" \
+        "$(printf '%s' "$file" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g')" \
+        "$(printf '%s' "$line" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g')" \
+        "$(printf '%s' "$disposition" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g')" \
+        "$(printf '%s' "$comment" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g')"
+    done < "$proposals_file"
+    cat <<'HTML'
+</tbody></table></section><script>function copySelected(){const values=[...document.querySelectorAll('.proposal:checked')].map(x=>x.dataset.text);if(!values.length){alert('Select at least one comment first.');return;}navigator.clipboard.writeText(values.join('\n\n')).then(()=>alert('Selected comments copied. Open the PR and paste each comment at its shown file and line.'));}</script></body></html>
+HTML
   } > "$html_file"
 }
 
@@ -239,7 +279,7 @@ Read these reviewer-controlled files first:
 - `__REVIEW_DIR__/pr.diff`
 - `__REVIEW_DIR__/commits.txt`
 
-You may and should run Git/search/build/test commands and inspect any repository files needed for evidence. Do not modify application source code. Your only intended output file is `__AGENT_REPORT__` (plus temporary local analysis files under `__REVIEW_DIR__/` if needed).
+You may and should run Git/search/build/test commands and inspect any repository files needed for evidence. Do not modify application source code. Your intended output files are `__AGENT_REPORT__` and `__AGENT_COMMENTS__` (plus temporary local analysis files under `__REVIEW_DIR__/` if needed).
 
 ## Stage 1 - Understand the PR
 
@@ -532,6 +572,16 @@ Compact list only. Do not write a long paragraph per passed check.
 State the final merge recommendation and why.
 
 At the end, verify every BLOCKER/MAJOR statement is supported by concrete repository evidence. Remove unsupported claims before saving the report.
+
+## Proposed PR comments (approval required)
+
+Create `__AGENT_COMMENTS__` as tab-separated text. It is a local proposal file only; do not post or send anything to Bitbucket.
+
+The first line must be exactly:
+
+`# id\tdisposition\tfile\tline\ttitle\tcomment`
+
+Then include at most one row per confirmed finding that is suitable for a human reviewer to post. Use `INLINE` only when `file` and `line` identify a changed source line in the PR diff. Use `GENERAL` when a specific changed line is not available. Do not include suggestions, questions, weak hypotheses, pre-existing issues, or duplicate comments. `comment` must be one concise sentence and must not contain tabs or newlines. Use only relative repository paths and an integer line number for INLINE; use `-` for GENERAL line numbers.
 EOF_TASK
 
 escape_sed_replacement() {
@@ -540,9 +590,11 @@ escape_sed_replacement() {
 
 REVIEW_DIR_FOR_SED="$(escape_sed_replacement "$REVIEW_DIR")"
 AGENT_REPORT_FOR_SED="$(escape_sed_replacement "$AGENT_REPORT")"
+AGENT_COMMENTS_FOR_SED="$(escape_sed_replacement "$AGENT_COMMENTS")"
 sed \
   -e "s|__REVIEW_DIR__|$REVIEW_DIR_FOR_SED|g" \
   -e "s|__AGENT_REPORT__|$AGENT_REPORT_FOR_SED|g" \
+  -e "s|__AGENT_COMMENTS__|$AGENT_COMMENTS_FOR_SED|g" \
   "$TASK_FILE" > "$TASK_FILE.rendered"
 mv "$TASK_FILE.rendered" "$TASK_FILE"
 
@@ -567,6 +619,7 @@ EOF_REFS
 write_baseline_task() {
   local output_file="$1"
   local output_report="$2"
+  local output_comments="$3"
   cat > "$output_file" <<EOF_BASELINE
 # Neutral Pull Request Review Task
 
@@ -578,6 +631,7 @@ This is BASELINE mode. Do not read, load, quote, or apply the custom ai-pr-revie
 Read changed-files.txt, diff-stat.txt, pr.diff, commits.txt, and PR_CONTEXT.md. Do not write inside the source checkout.
 
 Create the review report at: $output_report
+Create a local-only proposed-comment file at: $output_comments. Its first line must be exactly `# id<TAB>disposition<TAB>file<TAB>line<TAB>title<TAB>comment`. Include only confirmed, review-ready findings. Use INLINE only for an exact changed path and line; otherwise use GENERAL and `-` as the line. Do not post anything to Bitbucket.
 
 Include: executive summary, change impact, findings with severity/evidence/failure scenario/impact/recommendation/confidence, positive observations, test gaps, and final recommendation. Do not report issues already present in the merge base.
 
@@ -590,14 +644,18 @@ GUIDED_AGENT_REPORT="$AGENT_REPORT"
 GUIDED_AGENT_LOG="$AGENT_LOG"
 if [[ "$REVIEW_MODE" == "baseline" ]]; then
   rm -rf "$REVIEW_DIR/rules"
-  write_baseline_task "$TASK_FILE" "$AGENT_REPORT"
+  write_baseline_task "$TASK_FILE" "$AGENT_REPORT" "$AGENT_COMMENTS"
 elif [[ "$REVIEW_MODE" == "both" ]]; then
   GUIDED_TASK_FILE="$REVIEW_DIR/REVIEW_TASK.guided.md"
   mv "$TASK_FILE" "$GUIDED_TASK_FILE"
   BASELINE_TASK_FILE="$REVIEW_DIR/REVIEW_TASK.baseline.md"
   BASELINE_AGENT_REPORT="$REVIEW_DIR/ai-pr-review-baseline.md"
+  BASELINE_AGENT_COMMENTS="$REVIEW_DIR/proposed-pr-comments-baseline.tsv"
+  GUIDED_AGENT_COMMENTS="$REVIEW_DIR/proposed-pr-comments-guided.tsv"
+  sed "s|$AGENT_COMMENTS_FOR_SED|$(escape_sed_replacement "$GUIDED_AGENT_COMMENTS")|g" "$GUIDED_TASK_FILE" > "$GUIDED_TASK_FILE.rendered"
+  mv "$GUIDED_TASK_FILE.rendered" "$GUIDED_TASK_FILE"
   BASELINE_AGENT_LOG="$REVIEW_DIR/agent-baseline.log"
-  write_baseline_task "$BASELINE_TASK_FILE" "$BASELINE_AGENT_REPORT"
+  write_baseline_task "$BASELINE_TASK_FILE" "$BASELINE_AGENT_REPORT" "$BASELINE_AGENT_COMMENTS"
 fi
 
 cd "$WORKTREE"
@@ -652,8 +710,8 @@ run_agent() {
 }
 
 run_single_review() {
-  local label="$1" task="$2" report="$3" agent_log="$4" final_report="$5" final_log="$6" final_html
-  TASK_FILE="$task"; AGENT_REPORT="$report"; AGENT_LOG="$agent_log"
+  local label="$1" task="$2" report="$3" agent_log="$4" comments="$5" final_report="$6" final_log="$7" final_comments="$8" final_html final_comments_html
+  TASK_FILE="$task"; AGENT_REPORT="$report"; AGENT_LOG="$agent_log"; AGENT_COMMENTS="$comments"
   echo
   echo "========== $label REVIEW =========="
   echo "Task: $TASK_FILE"
@@ -667,6 +725,13 @@ run_single_review() {
   [[ -f "$AGENT_LOG" ]] && cp "$AGENT_LOG" "$final_log"
   final_html="${final_report%.md}.html"
   generate_html_report "$final_report" "$final_html"
+  if [[ -f "$AGENT_COMMENTS" ]]; then
+    cp "$AGENT_COMMENTS" "$final_comments"
+    final_comments_html="${final_comments%.tsv}.html"
+    generate_comment_proposals_html "$final_comments" "$final_comments_html" "$PR_URL"
+  else
+    log "WARNING: $label review did not create proposed-pr-comments.tsv. The report is still available."
+  fi
   bash "$SCRIPT_DIR/generate-dashboard.sh" --no-open >/dev/null
   log "$label review report saved: $final_report"
 }
@@ -677,8 +742,10 @@ if [[ "$REVIEW_MODE" == "both" ]]; then
   BASELINE_FINAL_LOG="${FINAL_LOG%.agent.log}-baseline.agent.log"
   GUIDED_FINAL_LOG="${FINAL_LOG%.agent.log}-guided.agent.log"
   COMPARISON_FILE="${FINAL_REPORT%.md}-comparison.md"
-  run_single_review "BASELINE" "$BASELINE_TASK_FILE" "$BASELINE_AGENT_REPORT" "$BASELINE_AGENT_LOG" "$BASELINE_FINAL_REPORT" "$BASELINE_FINAL_LOG"
-  run_single_review "GUIDED" "$GUIDED_TASK_FILE" "$GUIDED_AGENT_REPORT" "$GUIDED_AGENT_LOG" "$GUIDED_FINAL_REPORT" "$GUIDED_FINAL_LOG"
+  BASELINE_FINAL_COMMENTS="${FINAL_COMMENTS%.tsv}-baseline.tsv"
+  GUIDED_FINAL_COMMENTS="${FINAL_COMMENTS%.tsv}-guided.tsv"
+  run_single_review "BASELINE" "$BASELINE_TASK_FILE" "$BASELINE_AGENT_REPORT" "$BASELINE_AGENT_LOG" "$BASELINE_AGENT_COMMENTS" "$BASELINE_FINAL_REPORT" "$BASELINE_FINAL_LOG" "$BASELINE_FINAL_COMMENTS"
+  run_single_review "GUIDED" "$GUIDED_TASK_FILE" "$GUIDED_AGENT_REPORT" "$GUIDED_AGENT_LOG" "$GUIDED_AGENT_COMMENTS" "$GUIDED_FINAL_REPORT" "$GUIDED_FINAL_LOG" "$GUIDED_FINAL_COMMENTS"
   cat > "$COMPARISON_FILE" <<EOF_COMPARISON
 # Baseline and Guided Review Outputs
 
@@ -704,7 +771,7 @@ EOF_COMPARISON
   [[ "$(uname)" != "Darwin" ]] || open "$COMPARISON_HTML" || log "WARNING: could not open comparison HTML automatically."
 else
   DISPLAY_MODE="$(printf '%s' "$REVIEW_MODE" | tr '[:lower:]' '[:upper:]')"
-  run_single_review "$DISPLAY_MODE" "$TASK_FILE" "$AGENT_REPORT" "$AGENT_LOG" "$FINAL_REPORT" "$FINAL_LOG"
+  run_single_review "$DISPLAY_MODE" "$TASK_FILE" "$AGENT_REPORT" "$AGENT_LOG" "$AGENT_COMMENTS" "$FINAL_REPORT" "$FINAL_LOG" "$FINAL_COMMENTS"
   log "Stage 6/6 complete: review output saved."
   echo
   echo "============================================="
@@ -714,6 +781,7 @@ else
   echo "Markdown:     $FINAL_REPORT"
   echo "Agent log:   $FINAL_LOG"
   echo "Run log:     $RUN_LOG"
+  [[ -f "${FINAL_COMMENTS%.tsv}.html" ]] && echo "Comment proposals: ${FINAL_COMMENTS%.tsv}.html"
   echo "============================================="
   [[ "$(uname)" != "Darwin" ]] || open "$FINAL_HTML" || log "WARNING: could not open review HTML automatically."
 fi
