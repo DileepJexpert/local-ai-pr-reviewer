@@ -2,6 +2,70 @@
 
 This package runs independently of any existing Bitbucket PR hook. It creates an isolated Git worktree for the PR source branch and lets the internal `idfc-coder` review the complete repository with the PR diff and architecture rules.
 
+## Latest macOS workflow — use this first
+
+Use this section for the current version of the reviewer. The older Windows, advanced, and fallback commands are intentionally kept later in this README for reference.
+
+### One-time setup
+
+Open Terminal in your `local-ai-pr-reviewer` folder and run:
+
+```bash
+git pull origin main
+chmod +x review.command review-comments.command open-dashboard.command start-review.sh review-pr.sh generate-dashboard.sh
+```
+
+### Review one Bitbucket PR
+
+Start the simple launcher:
+
+```bash
+./review.command
+```
+
+Answer its questions as follows:
+
+1. **Paste GitHub or Bitbucket PR/compare URL** — paste the complete Bitbucket PR URL.
+2. **Local repository folder** — paste the local folder of the same service, for example `/Users/your-name/Documents/work/loan-letter-generator-service`. You can instead press Enter to use the automatic `~/ai-pr-repos` cache.
+3. **AI executable** — press Enter for `idfc-coder`.
+4. **Review mode** — enter `2` for the normal guided review. Enter `1` for a neutral baseline review or `3` to run both and compare them.
+
+### When IDFC Coder opens
+
+The reviewer already copied the complete **read-only code-review task** to your clipboard. Do not type `just review` or write another task.
+
+1. Click IDFC Coder.
+2. Press `Cmd + V`, then Enter.
+3. When it shows **PLAN MODE**, press `Shift + Tab`.
+4. When it shows **EXECUTE MODE**, type `Proceed`, then Enter.
+5. Wait for `REVIEW COMPLETE`. IDFC Coder must read code and run Git/search commands, but the supplied task forbids it from changing application code.
+
+The reviewer opens the finished `review.html` in your browser and saves all files under `reviews/pr-.../` beside the reviewer scripts.
+
+### Choose comments for Bitbucket
+
+After the review completes, run:
+
+```bash
+./review-comments.command
+```
+
+It opens a local page showing suggested comments, with file paths and line numbers. Tick only comments you agree with. Nothing is posted automatically: open Bitbucket and add the selected comments yourself.
+
+### Open all saved reviews
+
+```bash
+./open-dashboard.command
+```
+
+This opens `reviews/index.html` with links to every completed review, report, proposed-comment page, and logs.
+
+---
+
+## Earlier and advanced reference
+
+The remaining sections preserve previous workflows, Windows commands, direct terminal commands, troubleshooting, and fallback options.
+
 ## Review accuracy safeguard
 
 The reviewer now uses a mandatory evidence pipeline:
