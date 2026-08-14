@@ -139,10 +139,61 @@ log() {
 generate_html_report() {
   local markdown_file="$1" html_file="$2"
   {
-    printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"><title>AI PR Review</title><style>body{font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:1000px;margin:40px auto;padding:0 24px;color:#172033;background:#f6f8fb}main{background:#fff;border-radius:12px;padding:28px;box-shadow:0 1px 4px #0002}pre{white-space:pre-wrap;word-wrap:break-word;line-height:1.5;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body><main><h1>AI Pull Request Review</h1><pre>'
-    sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' "$markdown_file"
-    printf '%s\n' '</pre></main></body></html>'
+    cat <<'HTML'
+<!doctype html><html><head><meta charset="utf-8"><title>AI PR Review</title><style>
+:root{--ink:#172033;--muted:#667085;--line:#e5e7eb;--navy:#12355b;--blue:#175cd3;--bg:#f4f7fb}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}.top{background:linear-gradient(120deg,#0d3158,#2563b8);color:#fff;padding:42px max(24px,calc((100% - 1060px)/2))}.top h1{margin:0;font-size:30px}.top p{margin:6px 0 0;color:#dbeafe}.content{max-width:1060px;margin:28px auto 60px;padding:0 24px}.card{background:#fff;border-radius:16px;padding:32px;box-shadow:0 8px 30px #183b6614}h1{color:var(--navy);font-size:28px;margin:0 0 18px}h2{color:var(--navy);font-size:21px;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid #dbeafe}h3{color:#175cd3;margin:22px 0 8px;font-size:17px}p{margin:9px 0}ul,ol{padding-left:25px}li{margin:6px 0}pre{background:#101828;color:#e5eefb;border-radius:10px;padding:18px;overflow:auto;white-space:pre-wrap;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}code{background:#eef4ff;color:#12355b;padding:2px 5px;border-radius:4px}.severity{display:inline-block;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:700;margin-right:6px}.blocker{background:#fee4e2;color:#b42318}.major{background:#fef0c7;color:#93370d}.minor{background:#d1fadf;color:#027a48}.suggestion,.question{background:#e0eaff;color:#175cd3}.muted{color:var(--muted)}
+</style></head><body><header class="top"><h1>AI Pull Request Review</h1><p>Evidence-based review of the frozen pull-request snapshot</p></header><main class="content"><article class="card">
+HTML
+    render_markdown_html "$markdown_file"
+    printf '%s\n' '</article></main></body></html>'
   } > "$html_file"
+}
+
+html_escape() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
+render_markdown_html() {
+  local markdown_file="$1" line escaped in_code="false" in_list="false"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == '```'* ]]; then
+      if [[ "$in_code" == "true" ]]; then printf '%s\n' '</code></pre>'; in_code="false"; else printf '%s\n' '<pre><code>'; in_code="true"; fi
+      continue
+    fi
+    escaped="$(printf '%s' "$line" | html_escape)"
+    if [[ "$in_code" == "true" ]]; then printf '%s\n' "$escaped"; continue; fi
+    if [[ "$line" =~ ^\#\ \ ?(.*)$ ]]; then
+      [[ "$in_list" == "true" ]] && { printf '%s\n' '</ul>'; in_list="false"; }
+      printf '<h1>%s</h1>\n' "$(printf '%s' "${BASH_REMATCH[1]}" | html_escape)"
+    elif [[ "$line" =~ ^\#\#\ \ ?(.*)$ ]]; then
+      [[ "$in_list" == "true" ]] && { printf '%s\n' '</ul>'; in_list="false"; }
+      printf '<h2>%s</h2>\n' "$(printf '%s' "${BASH_REMATCH[1]}" | html_escape)"
+    elif [[ "$line" =~ ^\#\#\#\ \ ?(.*)$ ]]; then
+      [[ "$in_list" == "true" ]] && { printf '%s\n' '</ul>'; in_list="false"; }
+      printf '<h3>%s</h3>\n' "$(printf '%s' "${BASH_REMATCH[1]}" | html_escape)"
+    elif [[ "$line" == '- '* || "$line" == '* '* ]]; then
+      [[ "$in_list" == "true" ]] || { printf '%s\n' '<ul>'; in_list="true"; }
+      printf '<li>%s</li>\n' "$(printf '%s' "${line:2}" | html_escape)"
+    elif [[ -z "$line" ]]; then
+      [[ "$in_list" == "true" ]] && { printf '%s\n' '</ul>'; in_list="false"; }
+    else
+      [[ "$in_list" == "true" ]] && { printf '%s\n' '</ul>'; in_list="false"; }
+      if [[ "$line" == *BLOCKER* ]]; then printf '<p><span class="severity blocker">BLOCKER</span>%s</p>\n' "$escaped";
+      elif [[ "$line" == *MAJOR* ]]; then printf '<p><span class="severity major">MAJOR</span>%s</p>\n' "$escaped";
+      elif [[ "$line" == *MINOR* ]]; then printf '<p><span class="severity minor">MINOR</span>%s</p>\n' "$escaped";
+      elif [[ "$line" == *SUGGESTION* || "$line" == *QUESTION* ]]; then printf '<p><span class="severity suggestion">NOTE</span>%s</p>\n' "$escaped";
+      else printf '<p>%s</p>\n' "$escaped"; fi
+    fi
+  done < "$markdown_file"
+  [[ "$in_list" == "true" ]] && printf '%s\n' '</ul>'
+  [[ "$in_code" == "true" ]] && printf '%s\n' '</code></pre>'
+  return 0
+}
+
+clean_terminal_transcript() {
+  if command -v perl >/dev/null 2>&1; then
+    perl -pe 's/\e\[[0-?]*[ -\/]*[@-~]//g; s/\e\][^\a]*(?:\a|\e\\)//g; s/\r//g; s/\[(?:\?|\d+(?:;\d+)*)[A-Za-z]//g'
+  else
+    tr -d '\r'
+  fi
 }
 
 print_open_link() {
@@ -737,13 +788,20 @@ run_single_review() {
   if [[ ! -f "$AGENT_REPORT" ]]; then
     if [[ -s "$AGENT_LOG" ]]; then
       log "WARNING: $label review did not create its report file; saving the completed IDFC Coder transcript as the review instead."
+      CLEAN_TRANSCRIPT="$REVIEW_DIR/agent.cleaned.txt"
+      clean_terminal_transcript < "$AGENT_LOG" > "$CLEAN_TRANSCRIPT"
+      REPORT_START_LINE="$(grep -nE '^(# AI PR Architecture Review|AI Pull Request Architecture Review|## Executive Summary)' "$CLEAN_TRANSCRIPT" | tail -n 1 | cut -d: -f1 || true)"
       {
         printf '%s\n\n' "# AI PR Review (captured IDFC Coder transcript)"
-        printf '%s\n\n' "IDFC Coder completed its terminal response but did not create the requested report file. This page preserves that response; use the agent log for the original terminal transcript."
+        printf '%s\n\n' "IDFC Coder completed its terminal response but did not create the requested report file. This page shows the cleaned final review output; the original terminal transcript remains in agent.log."
         printf '%s\n' '## Captured IDFC Coder output'
         printf '%s\n'
         printf '%s\n' '```text'
-        tr -d '\r' < "$AGENT_LOG"
+        if [[ -n "$REPORT_START_LINE" ]]; then
+          tail -n "+$REPORT_START_LINE" "$CLEAN_TRANSCRIPT"
+        else
+          tail -n 800 "$CLEAN_TRANSCRIPT"
+        fi
         printf '%s\n' '```'
       } > "$final_report"
     else
