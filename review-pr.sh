@@ -145,6 +145,13 @@ generate_html_report() {
   } > "$html_file"
 }
 
+print_open_link() {
+  local label="$1" path="$2"
+  [[ -f "$path" ]] || return 0
+  printf '%s link (Cmd-click): file://%s\n' "$label" "$path"
+  printf 'Open command: open "%s"\n' "$path"
+}
+
 generate_comment_proposals_html() {
   local proposals_file="$1" html_file="$2" pr_url="$3"
   local pr_link="" safe_pr_url
@@ -190,6 +197,8 @@ review_failed() {
   echo "Run log:   $RUN_LOG" >&2
   [[ -f "$FINAL_LOG" ]] && echo "Agent log: $FINAL_LOG" >&2
   echo "Report:    not created" >&2
+  print_open_link "Run log" "$RUN_LOG" >&2
+  print_open_link "Agent log" "$FINAL_LOG" >&2
   echo "=============================================" >&2
 }
 trap 'review_failed $?' ERR
@@ -726,10 +735,24 @@ run_single_review() {
   log "Starting $label review against the frozen source, target, and merge-base refs."
   run_agent
   if [[ ! -f "$AGENT_REPORT" ]]; then
-    log "$label review stopped without creating its report."
-    return 3
+    if [[ -s "$AGENT_LOG" ]]; then
+      log "WARNING: $label review did not create its report file; saving the completed IDFC Coder transcript as the review instead."
+      {
+        printf '%s\n\n' "# AI PR Review (captured IDFC Coder transcript)"
+        printf '%s\n\n' "IDFC Coder completed its terminal response but did not create the requested report file. This page preserves that response; use the agent log for the original terminal transcript."
+        printf '%s\n' '## Captured IDFC Coder output'
+        printf '%s\n'
+        printf '%s\n' '```text'
+        tr -d '\r' < "$AGENT_LOG"
+        printf '%s\n' '```'
+      } > "$final_report"
+    else
+      log "$label review stopped without creating a report or any agent output."
+      return 3
+    fi
+  else
+    cp "$AGENT_REPORT" "$final_report"
   fi
-  cp "$AGENT_REPORT" "$final_report"
   [[ -f "$AGENT_LOG" ]] && cp "$AGENT_LOG" "$final_log"
   final_html="${final_report%.md}.html"
   generate_html_report "$final_report" "$final_html"
@@ -776,7 +799,7 @@ EOF_COMPARISON
   echo "Open comparison: $COMPARISON_HTML"
   echo "Run log:    $RUN_LOG"
   echo "============================================="
-  [[ "$(uname)" != "Darwin" ]] || open "$COMPARISON_HTML" || log "WARNING: could not open comparison HTML automatically."
+  print_open_link "Comparison" "$COMPARISON_HTML"
 else
   DISPLAY_MODE="$(printf '%s' "$REVIEW_MODE" | tr '[:lower:]' '[:upper:]')"
   run_single_review "$DISPLAY_MODE" "$TASK_FILE" "$AGENT_REPORT" "$AGENT_LOG" "$AGENT_COMMENTS" "$FINAL_REPORT" "$FINAL_LOG" "$FINAL_COMMENTS"
@@ -791,5 +814,6 @@ else
   echo "Run log:     $RUN_LOG"
   [[ -f "${FINAL_COMMENTS%.tsv}.html" ]] && echo "Comment proposals: ${FINAL_COMMENTS%.tsv}.html"
   echo "============================================="
-  [[ "$(uname)" != "Darwin" ]] || open "$FINAL_HTML" || log "WARNING: could not open review HTML automatically."
+  print_open_link "Review" "$FINAL_HTML"
+  print_open_link "Comment proposals" "${FINAL_COMMENTS%.tsv}.html"
 fi

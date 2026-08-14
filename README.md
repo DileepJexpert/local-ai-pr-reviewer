@@ -46,7 +46,7 @@ The reviewer already copied the complete **read-only code-review task** to your 
 4. When it shows **EXECUTE MODE**, type `Proceed`, then Enter.
 5. Wait for `REVIEW COMPLETE`. IDFC Coder must read code and run Git/search commands, but the supplied task forbids it from changing application code.
 
-The reviewer opens the finished `review.html` in your browser and saves all files under `reviews/pr-.../` beside the reviewer scripts.
+The reviewer saves all files under `reviews/pr-.../` beside the reviewer scripts. It does not open a browser automatically. Terminal prints a Cmd-clickable `file://` review link and an exact `open "..."` command after completion. If IDFC Coder prints its completed review but fails to create its requested report file, the reviewer now preserves that completed terminal output as `review.html` instead of losing it.
 
 ### Choose comments for Bitbucket
 

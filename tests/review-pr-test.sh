@@ -54,6 +54,15 @@ fi
 EOF_AGENT
 chmod +x "$FAKE_AGENT"
 
+TRANSCRIPT_AGENT="$TEST_ROOT/transcript-agent"
+cat > "$TRANSCRIPT_AGENT" <<'EOF_TRANSCRIPT_AGENT'
+#!/usr/bin/env bash
+set -euo pipefail
+cat >/dev/null
+printf 'Completed read-only review. Finding: example evidence-backed observation.\n'
+EOF_TRANSCRIPT_AGENT
+chmod +x "$TRANSCRIPT_AGENT"
+
 run_success() {
   local repo="$1"
   local output="$TEST_ROOT/reports/$(basename "$repo")"
@@ -133,10 +142,21 @@ test_normal_successful_flow() {
   run_success "$repo"
 }
 
+test_transcript_fallback() {
+  local repo="$TEST_ROOT/transcript-fallback-repo" output="$TEST_ROOT/transcript-reports"
+  make_repo "$repo"
+  AI_PR_REVIEW_REPORT_ROOT="$output" IDFC_CODER_MODE=stdin IDFC_CODER_CMD="$TRANSCRIPT_AGENT" bash "$SCRIPT" --repo "$repo" --source feature --target master >/dev/null
+  local report
+  report="$(find "$output" -name 'review.md' -type f -print -quit)"
+  assert_file "$report"
+  grep -q 'captured IDFC Coder transcript' "$report" || fail "transcript fallback was not saved as a report"
+}
+
 test_malicious_ai_review_symlink
 test_preexisting_legacy_worktree_path
 test_worktree_add_failure
 test_no_origin
 test_command_metacharacters
 test_normal_successful_flow
+test_transcript_fallback
 echo "PASS: review-pr.sh security tests"
