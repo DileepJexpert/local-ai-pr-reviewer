@@ -48,10 +48,12 @@ if (-not [string]::IsNullOrWhiteSpace($sourceFromUrl)) {
     $prId = $Matches[1]
     $fromRef = "refs/remotes/origin/ai-pr-reviewer/pr/$prId/from"
     $toRef = "refs/remotes/origin/ai-pr-reviewer/pr/$prId/to"
-    & git -C $Repository fetch origin "+refs/pull-requests/$prId/from:$fromRef" "+refs/pull-requests/$prId/to:$toRef"
-    if ($LASTEXITCODE -ne 0) { throw "Could not fetch Bitbucket pull request $prId refs from origin." }
+    & git -C $Repository fetch origin "+refs/pull-requests/$prId/from:$fromRef"
+    if ($LASTEXITCODE -ne 0) { throw "Could not fetch Bitbucket pull request $prId source ref from origin." }
     $sourceFromUrl = (& git -C $Repository rev-parse $fromRef).Trim()
-    $Target = (& git -C $Repository rev-parse $toRef).Trim()
+    & git -C $Repository fetch origin "+refs/pull-requests/$prId/to:$toRef" 2>$null
+    if ($LASTEXITCODE -eq 0) { $Target = (& git -C $Repository rev-parse $toRef).Trim() }
+    else { Write-Host "Bitbucket does not expose the PR target ref; using -Target $Target instead." }
 } else {
     throw 'Could not determine branches from PrUrl. Pass -Source and -Target, or use a GitHub/Bitbucket compare URL or Bitbucket PR overview URL.'
 }

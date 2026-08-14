@@ -61,11 +61,13 @@ elif [[ "$PATH_PART" =~ /projects/[^/]+/repos/[^/]+/pull-requests/([0-9]+)(/|$) 
   FROM_REF="refs/remotes/origin/ai-pr-reviewer/pr/${PR_ID}/from"
   TO_REF="refs/remotes/origin/ai-pr-reviewer/pr/${PR_ID}/to"
   echo "Resolving Bitbucket pull request $PR_ID from the repository remote..."
-  git -C "$REPO" fetch origin \
-    "+refs/pull-requests/${PR_ID}/from:${FROM_REF}" \
-    "+refs/pull-requests/${PR_ID}/to:${TO_REF}"
+  git -C "$REPO" fetch origin "+refs/pull-requests/${PR_ID}/from:${FROM_REF}"
   SOURCE="$(git -C "$REPO" rev-parse "$FROM_REF")"
-  TARGET="$(git -C "$REPO" rev-parse "$TO_REF")"
+  if git -C "$REPO" fetch origin "+refs/pull-requests/${PR_ID}/to:${TO_REF}" 2>/dev/null; then
+    TARGET="$(git -C "$REPO" rev-parse "$TO_REF")"
+  else
+    echo "Bitbucket does not expose the PR target ref; using --target $TARGET instead."
+  fi
 else
   echo "ERROR: Could not determine branches from this URL. Pass --source <branch> --target <branch>, or use a GitHub/Bitbucket compare URL or Bitbucket PR overview URL." >&2
   exit 2
