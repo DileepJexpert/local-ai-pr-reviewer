@@ -125,6 +125,8 @@ This is the current recommended command for the IDFC Bitbucket PR shown above. T
 
 While the review runs, Terminal shows timestamped stages such as worktree creation, frozen Git refs, diff preparation, IDFC launch, report detection, and cleanup. The same messages are saved in `reviews/*.review.log`; the full IDFC Coder session is saved in `reviews/*.agent.log` beside the final report.
 
+At the end, Terminal prints either `REVIEW COMPLETE` with the exact review report, agent-log, and run-log paths, or `REVIEW FAILED` with the error exit code and available diagnostic-log paths.
+
 If a company Bitbucket configuration does not expose PR refs through Git, supply branches explicitly with any URL:
 
 ```bash

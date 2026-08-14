@@ -124,6 +124,19 @@ log() {
   printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$RUN_LOG"
 }
 
+review_failed() {
+  local exit_code="$1"
+  [[ -f "$AGENT_LOG" ]] && cp "$AGENT_LOG" "$FINAL_LOG" 2>/dev/null || true
+  echo
+  echo "=============================================" >&2
+  echo "REVIEW FAILED (exit code $exit_code)" >&2
+  echo "Run log:   $RUN_LOG" >&2
+  [[ -f "$FINAL_LOG" ]] && echo "Agent log: $FINAL_LOG" >&2
+  echo "Report:    not created" >&2
+  echo "=============================================" >&2
+}
+trap 'review_failed $?' ERR
+
 cleanup() {
   if [[ "$KEEP_WORKTREE" == "true" ]]; then
     if [[ "$WORKTREE_ADDED" == "true" ]]; then
@@ -586,10 +599,12 @@ if [[ -f "$AGENT_REPORT" ]]; then
   cp "$AGENT_LOG" "$FINAL_LOG"
   log "Stage 6/6 complete: review output saved."
   echo
-  echo "Review complete."
-  echo "Report: $FINAL_REPORT"
-  echo "Agent log: $FINAL_LOG"
-  echo "Run log: $RUN_LOG"
+  echo "============================================="
+  echo "REVIEW COMPLETE"
+  echo "Open review: $FINAL_REPORT"
+  echo "Agent log:   $FINAL_LOG"
+  echo "Run log:     $RUN_LOG"
+  echo "============================================="
 else
   log "Review stopped: idfc-coder exited without creating the requested report."
   echo
@@ -598,5 +613,6 @@ else
   echo "Review data: $REVIEW_DIR" >&2
   echo "Agent log: $FINAL_LOG" >&2
   echo "Use --keep-worktree if you want to inspect the checked-out source after exit." >&2
+  review_failed 3
   exit 3
 fi
