@@ -77,7 +77,7 @@ mkdir -p ~/tools ~/work
 git clone git@github.com:DileepJexpert/local-ai-pr-reviewer.git ~/tools/local-ai-pr-reviewer
 git clone git@github.com:DileepJexpert/katasticho.git ~/work/katasticho
 cd ~/tools/local-ai-pr-reviewer
-chmod +x review.command start-review.sh review-pr.sh
+chmod +x review.command open-dashboard.command start-review.sh review-pr.sh generate-dashboard.sh
 ```
 
 Run the review with one command:
@@ -179,6 +179,16 @@ local-ai-pr-reviewer/
 ```
 
 The temporary path shown inside IDFC Coder is only its working file. After IDFC Coder exits, the reviewer copies it to this permanent `reviews/` folder and opens `review.html`.
+
+### Review dashboard
+
+Double-click `open-dashboard.command`, or run this in Terminal:
+
+```bash
+./generate-dashboard.sh
+```
+
+It opens `reviews/index.html`, a local browser page that lists all completed reviews with links to each HTML report, Markdown report, run log, and IDFC agent log.
 
 At the end, Terminal prints either `REVIEW COMPLETE` with the exact review report, agent-log, and run-log paths, or `REVIEW FAILED` with the error exit code and available diagnostic-log paths.
 

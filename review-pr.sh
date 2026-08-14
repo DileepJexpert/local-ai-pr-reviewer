@@ -667,6 +667,7 @@ run_single_review() {
   [[ -f "$AGENT_LOG" ]] && cp "$AGENT_LOG" "$final_log"
   final_html="${final_report%.md}.html"
   generate_html_report "$final_report" "$final_html"
+  bash "$SCRIPT_DIR/generate-dashboard.sh" --no-open >/dev/null
   log "$label review report saved: $final_report"
 }
 
