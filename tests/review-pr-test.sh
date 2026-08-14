@@ -44,18 +44,25 @@ cat > "$FAKE_AGENT" <<'EOF_AGENT'
 #!/usr/bin/env bash
 set -euo pipefail
 task="$(cat)"
-report="$(printf '%s\n' "$task" | sed -n 's/.*only intended output file is `\([^`]*\)`.*/\1/p' | head -n 1)"
+report="$(printf '%s\n' "$task" | sed -n 's/^Create `\([^`]*\)` with this structure:$/\1/p' | head -n 1)"
 [[ -n "$report" ]] || exit 20
 printf '# AI PR Architecture Review\n\n## Final Recommendation\nAPPROVE\n' > "$report"
+comments="$(printf '%s\n' "$task" | sed -n 's/^Create `\([^`]*proposed-pr-comments\.tsv\)`.*/\1/p' | head -n 1)"
+if [[ -n "$comments" ]]; then
+  printf '# id\tdisposition\tfile\tline\ttitle\tcomment\nF-1\tINLINE\tapplication.txt\t2\tSample issue\tSample verified review comment.\n' > "$comments"
+fi
 EOF_AGENT
 chmod +x "$FAKE_AGENT"
 
 run_success() {
   local repo="$1"
-  IDFC_CODER_MODE=stdin IDFC_CODER_CMD="$FAKE_AGENT" bash "$SCRIPT" --repo "$repo" --source feature --target master >/dev/null
+  local output="$TEST_ROOT/reports/$(basename "$repo")"
+  AI_PR_REVIEW_REPORT_ROOT="$output" IDFC_CODER_MODE=stdin IDFC_CODER_CMD="$FAKE_AGENT" bash "$SCRIPT" --repo "$repo" --source feature --target master >/dev/null
   local reports
-  reports="$(find "$repo/.ai-review-reports" -name '*.md' -type f)"
+  reports="$(find "$output" -name 'review.md' -type f)"
   [[ -n "$reports" ]] || fail "successful review did not create a report"
+  assert_file "$(dirname "$reports")/proposed-pr-comments.tsv"
+  assert_file "$(dirname "$reports")/proposed-pr-comments.html"
 }
 
 test_malicious_ai_review_symlink() {
@@ -97,7 +104,7 @@ fi
 exec "$REAL_GIT" "$@"
 EOF_GIT
   chmod +x "$bin/git"
-  if PATH="$bin:$PATH" REAL_GIT="$(command -v git)" RECORDED_WORKTREE="$recorded" IDFC_CODER_MODE=stdin IDFC_CODER_CMD="$FAKE_AGENT" bash "$SCRIPT" --repo "$repo" --source feature --target master >/dev/null 2>&1; then
+  if PATH="$bin:$PATH" REAL_GIT="$(command -v git)" RECORDED_WORKTREE="$recorded" AI_PR_REVIEW_REPORT_ROOT="$TEST_ROOT/reports" IDFC_CODER_MODE=stdin IDFC_CODER_CMD="$FAKE_AGENT" bash "$SCRIPT" --repo "$repo" --source feature --target master >/dev/null 2>&1; then
     fail "review unexpectedly succeeded after worktree-add failure"
   fi
   assert_file "$recorded"
