@@ -15,6 +15,12 @@ git pull origin main
 chmod +x review.command review-comments.command open-dashboard.command start-review.sh review-pr.sh generate-dashboard.sh
 ```
 
+**Next, start the reviewer with:**
+
+```bash
+./review.command
+```
+
 ### Review one Bitbucket PR
 
 Start the simple launcher:
