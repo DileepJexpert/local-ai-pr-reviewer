@@ -390,6 +390,19 @@ You may and should run Git/search/build/test commands and inspect any repository
    - build/dependencies
 4. Do not deeply review technologies the PR does not affect unless execution-path analysis shows an indirect impact.
 
+### Applicability gate (keep all rules, apply them conditionally)
+
+Before running the detailed technology-specific checks, create an applicability
+matrix from the changed files, dependency/build changes, configuration, and
+discovered execution paths. Mark each area `APPLICABLE`, `INDIRECTLY_APPLICABLE`,
+or `NOT_APPLICABLE`, and cite the evidence. Apply every existing rule in this
+task when its area is applicable or indirectly applicable; do not spend review
+time inventing findings for areas marked not applicable. This gate does not
+replace the neutral review or the open-ended novel-risk pass. A new library,
+tool, framework, file type, or integration must trigger discovery of its own
+API, lifecycle, compatibility, security, failure, and test risks even when it
+is not named in this checklist.
+
 ## Stage 2 - Build repository context
 
 For each materially changed execution path:
@@ -432,6 +445,11 @@ Review all relevant changed behavior for:
 Avoid duplicating findings better handled by compiler/formatter/static-style tools unless they create architectural or production impact.
 
 ## Stage 4 - Technology-specific review
+
+Run the following sections only when the applicability matrix marks the area
+`APPLICABLE` or `INDIRECTLY_APPLICABLE`. Preserve the full checks; conditional
+application controls relevance, not coverage. If an area is not applicable,
+record `NOT_APPLICABLE` and the evidence rather than silently skipping it.
 
 ### Spring
 Check, where relevant:
@@ -543,6 +561,11 @@ Look for interactions between otherwise-correct components, new language/library
 
 Do not invent findings just to populate this section. It is valid to report that no additional evidence-backed novel risk was found.
 
+The open-ended pass is mandatory even when no technology-specific checklist
+area applies. Inspect new libraries, tools, frameworks, generated code, build
+plugins, configuration formats, and external integrations for risks that the
+named sections do not cover.
+
 ## Stage 8 - Mandatory candidate verification and final judge
 
 Before reading `__REVIEW_DIR__/rules/`, perform a neutral repository and architecture discovery phase. Inspect ADRs/design documents, the changed module, comparable recent modules, and relevant repository history; record the evidence and unknowns in the report. Do not assume DDD, MVC, hexagonal, clean architecture, CQRS, or another named architecture is preferred. Treat architecture drift separately from correctness: a different pattern is not a defect unless repository evidence shows it is unintentional and inconsistent with established conventions.
@@ -623,6 +646,11 @@ Describe the affected execution paths and technologies.
 - ADR/design evidence, if any
 - Current-module, comparable-module, and history evidence
 - Discovered conventions and unresolved unknowns
+
+## Applicable Review Areas
+- Area: APPLICABLE | INDIRECTLY_APPLICABLE | NOT_APPLICABLE
+- Evidence for each classification
+- Rules applied and rules intentionally not applicable
 
 ## Blockers
 All evidence-backed BLOCKER findings, or `None`.
